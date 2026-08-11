@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Radar Adapsys IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#0A0F26;
+    --bg-panel:#121A42;
+    --bg-panel-2:#171F52;
+    --magenta:#EC1568;
+    --magenta-soft:#FF6FA0;
+    --teal:#2FE0C4;
+    --sky:#7FD4FF;
+    --text:#F2F5FF;
+    --muted:#8D97C4;
+    --border:rgba(255,255,255,0.10);
+    --radius:18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 82% -6%, rgba(127,212,255,0.16), transparent 40%),
+      radial-gradient(circle at 105% 12%, rgba(236,21,104,0.20), transparent 38%),
+      radial-gradient(circle at -6% 90%, rgba(47,224,196,0.14), transparent 40%),
+      var(--bg-deep);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:32px 16px;
+  }
+  .wrap{
+    width:100%;
+    max-width:640px;
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:22px;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    letter-spacing:0.02em;
+    font-size:15px;
+    color:var(--muted);
+  }
+  .brand .dot{
+    width:8px;height:8px;border-radius:50%;
+    background:linear-gradient(135deg,var(--magenta),var(--sky));
+  }
+  .card{
+    background:linear-gradient(180deg, var(--bg-panel), var(--bg-panel-2));
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:40px;
+    box-shadow:0 30px 60px -20px rgba(0,0,0,0.6);
+    position:relative;
+    overflow:hidden;
+  }
+  .card::before{
+    content:"";
+    position:absolute;
+    top:-90px; right:-90px;
+    width:220px;height:220px;
+    border-radius:50%;
+    border:1px solid rgba(127,212,255,0.35);
+  }
+  .card::after{
+    content:"";
+    position:absolute;
+    top:-60px; right:-40px;
+    width:150px;height:150px;
+    border-radius:50%;
+    border:1px solid rgba(236,21,104,0.35);
+  }
+  h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:28px;
+    line-height:1.25;
+    margin:0 0 12px 0;
+    font-weight:700;
+  }
+  p.lead{
+    color:var(--muted);
+    font-size:15px;
+    line-height:1.6;
+    margin:0 0 28px 0;
+  }
+  label{
+    display:block;
+    font-size:13px;
+    color:var(--muted);
+    margin-bottom:6px;
+    font-weight:500;
+  }
+  input[type=text], input[type=email], textarea{
+    width:100%;
+    background:rgba(0,0,0,0.25);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px 14px;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+    margin-bottom:18px;
+    outline:none;
+    transition:border-color 0.15s;
+  }
+  textarea{resize:vertical;min-height:90px;}
+  input:focus, textarea:focus{border-color:var(--sky);}
+  .btn{
+    appearance:none;
+    border:none;
+    cursor:pointer;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:15px;
+    padding:13px 26px;
+    border-radius:100px;
+    background:linear-gradient(90deg,var(--magenta),var(--magenta-soft));
+    color:#fff;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:transform 0.15s, box-shadow 0.15s;
+  }
+  .btn:hover{transform:translateY(-1px); box-shadow:0 8px 20px -6px rgba(236,21,104,0.6);}
+  .btn:disabled{opacity:0.4; cursor:not-allowed; transform:none; box-shadow:none;}
+  .btn.ghost{
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--muted);
+  }
+  .row-end{display:flex; justify-content:flex-end; margin-top:8px;}
+  .row-between{display:flex; justify-content:space-between; align-items:center; margin-top:8px;}
+
+  /* progress dots — echo del gráfico de "gobierno" del deck */
+  .progress{
+    display:flex;
+    justify-content:center;
+    gap:10px;
+    margin-bottom:30px;
+  }
+  .progress .stem{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+  }
+  .progress .line{
+    width:1px; height:14px;
+    background:var(--border);
+  }
+  .progress .node{
+    width:9px; height:9px;
+    border-radius:50%;
+    background:var(--border);
+    transition:background 0.2s, transform 0.2s;
+  }
+  .progress .node.active{
+    background:linear-gradient(135deg,var(--magenta),var(--sky));
+    transform:scale(1.3);
+  }
+  .progress .node.done{
+    background:var(--teal);
+  }
+
+  .dim-tag{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--sky);
+    background:rgba(127,212,255,0.10);
+    border:1px solid rgba(127,212,255,0.25);
+    padding:4px 10px;
+    border-radius:100px;
+    margin-bottom:14px;
+  }
+
+  .question{
+    margin-bottom:26px;
+  }
+  .question p{
+    font-size:16px;
+    line-height:1.5;
+    margin:0 0 14px 0;
+  }
+  .scale{
+    display:flex;
+    gap:8px;
+  }
+  .scale button{
+    flex:1;
+    padding:12px 4px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:rgba(0,0,0,0.2);
+    color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:14px;
+    cursor:pointer;
+    transition:all 0.15s;
+  }
+  .scale button:hover{border-color:var(--sky);}
+  .scale button.sel{
+    background:linear-gradient(135deg,var(--magenta),var(--sky));
+    color:#fff;
+    border-color:transparent;
+  }
+  .scale-caption{
+    display:flex;
+    justify-content:space-between;
+    font-size:11px;
+    color:var(--muted);
+    margin-top:20px;
+  }
+
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:14px;
+    padding:8px 16px;
+    border-radius:100px;
+    margin-bottom:6px;
+  }
+  .badge.level{background:rgba(47,224,196,0.14); color:var(--teal); border:1px solid rgba(47,224,196,0.35);}
+  .badge.energy-survive{background:rgba(236,21,104,0.16); color:var(--magenta-soft); border:1px solid rgba(236,21,104,0.35);}
+  .badge.energy-transit{background:rgba(255,196,64,0.14); color:#FFC940; border:1px solid rgba(255,196,64,0.35);}
+  .badge.energy-impulse{background:rgba(127,212,255,0.16); color:var(--sky); border:1px solid rgba(127,212,255,0.35);}
+
+  .result-title{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:24px;
+    margin:10px 0 16px 0;
+  }
+  .result-text{
+    color:var(--text);
+    font-size:15px;
+    line-height:1.65;
+    margin:0 0 14px 0;
+  }
+  .divider{
+    height:1px;
+    background:var(--border);
+    margin:22px 0;
+  }
+  .bottleneck-box{
+    background:rgba(0,0,0,0.22);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px 18px;
+    margin-bottom:22px;
+  }
+  .bottleneck-box .k{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .stat-line{
+    font-size:13px;
+    color:var(--muted);
+    margin-top:6px;
+  }
+  .axis-explain{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    margin-bottom:20px;
+  }
+  .axis-explain .axis-row{
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+    font-size:14px;
+  }
+  .axis-explain .axis-icon{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+    min-width:88px;
+  }
+  .grid-wrap{
+    margin:18px 0 26px 0;
+  }
+  .grid-cap{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:4px;
+    margin-bottom:8px;
+    padding-left:92px;
+  }
+  .grid-cap span{
+    text-align:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .grid-body{
+    display:flex;
+    align-items:stretch;
+    gap:4px;
+  }
+  .grid-labels{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    width:88px;
+  }
+  .grid-labels .lbl{
+    flex:1;
+    display:flex;
+    align-items:center;
+    font-size:11px;
+    color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .grid-cells{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .grid-row{
+    flex:1;
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:4px;
+    min-height:26px;
+  }
+  .grid-cell{
+    background:rgba(255,255,255,0.04);
+    border:1px solid var(--border);
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .grid-cell.hit{
+    background:linear-gradient(135deg,var(--magenta),var(--sky));
+    border-color:transparent;
+    box-shadow:0 0 0 3px rgba(127,212,255,0.18);
+  }
+  .grid-cell.hit .you{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px;
+    font-weight:600;
+    color:#fff;
+    letter-spacing:0.03em;
+  }
+  .attrib{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:6px;
+  }
+  .contact-form{
+    margin-top:10px;
+    background:rgba(0,0,0,0.18);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:22px;
+  }
+  .contact-form h3{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:16px;
+    margin:0 0 6px 0;
+  }
+  .contact-form p{
+    font-size:13px;
+    color:var(--muted);
+    margin:0 0 16px 0;
+    line-height:1.5;
+  }
+  .quote{
+    font-style:italic;
+    color:var(--sky);
+    font-size:14px;
+    margin:2px 0 10px 0;
+  }
+  .legend{
+    margin:16px 0 24px 0;
+  }
+  .legend-title{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:10px;
+  }
+  .legend-item{
+    display:flex;
+    gap:10px;
+    padding:9px 10px;
+    border-radius:8px;
+    margin-bottom:4px;
+  }
+  .legend-item .num{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+    min-width:16px;
+  }
+  .legend-item .body{
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.4;
+  }
+  .legend-item .body b{color:var(--muted);}
+  .legend-item.current{
+    background:rgba(127,212,255,0.08);
+    border:1px solid rgba(127,212,255,0.25);
+  }
+  .legend-item.current .num{color:var(--sky);}
+  .legend-item.current .body{color:var(--text);}
+  .legend-item.current .body b{color:var(--sky);}
+  .bullets{
+    list-style:none;
+    margin:0 0 14px 0;
+    padding:0;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:6px;
+  }
+  .bullets li{
+    font-size:13px;
+    color:var(--text);
+    display:flex;
+    align-items:flex-start;
+    gap:6px;
+  }
+  .bullets li::before{
+    content:"✓";
+    color:var(--teal);
+    font-weight:700;
+    flex-shrink:0;
+  }
+  .next-step{
+    background:rgba(255,196,64,0.08);
+    border:1px solid rgba(255,196,64,0.25);
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:13px;
+    color:var(--text);
+    line-height:1.5;
+    margin-top:6px;
+  }
+  .next-step b{color:#FFC940;}
+  .cta-primary{
+    display:block;
+    text-align:center;
+    width:100%;
+    padding:16px;
+    font-size:16px;
+    border-radius:12px;
+    box-shadow:0 12px 30px -8px rgba(236,21,104,0.55);
+  }
+  .cta-secondary{
+    display:block;
+    text-align:center;
+    width:100%;
+    background:none;
+    border:none;
+    color:var(--muted);
+    font-size:13px;
+    text-decoration:underline;
+    cursor:pointer;
+    padding:10px;
+  }
+  .cta-row{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:26px;
+  }
+  .error{
+    color:var(--magenta-soft);
+    font-size:13px;
+    margin:-10px 0 16px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="brand"><span class="dot"></span> ADAPSYS · Radar Adapsys IA</div>
+  <div class="card" id="app"></div>
+</div>
+
+<script>
+/* ---------- Contenido ---------- */
+/* Estas 6 dimensiones fusionan: el instrumento largo de Adapsys
+   (Organización / Negocio / Tecnología), el marco de energía de
+   Kotter (Survive/Thrive) y las 7 dimensiones de preparación
+   agéntica. Es la versión pública y corta; el instrumento de 40
+   preguntas sigue siendo la versión completa para diagnósticos 1:1. */
+const DIMENSIONS = [
+  { key: 'proposito', label: 'Propósito y convicción' },
+  { key: 'valor',      label: 'Uso, impacto y modelo de negocio' },
+  { key: 'datos',      label: 'Datos, sistemas e infraestructura' },
+  { key: 'gobierno',   label: 'Gobierno de la IA' },
+  { key: 'cultura',    label: 'Cultura y liderazgo' },
+  { key: 'talento',    label: 'Talento y capacidades' },
+];
+
+const QUESTIONS = [
+  { id: 1,  dim: 'proposito', text: 'Existe una visión clara y compartida en la alta dirección sobre para qué estamos adoptando IA.' },
+  { id: 2,  dim: 'proposito', text: 'Sabemos, con evidencia y no solo intuición, cuáles son los desafíos más críticos que enfrentamos en el camino hacia la IA.' },
+
+  { id: 3,  dim: 'valor', text: 'Hemos identificado oportunidades concretas donde la IA generaría valor medible para el negocio, más allá de la eficiencia interna.' },
+  { id: 4,  dim: 'valor', text: 'Medimos el retorno real de nuestras iniciativas de IA, no solo si se implementaron.' },
+
+  { id: 5,  dim: 'datos', text: 'Nuestros datos tienen la calidad, disponibilidad y gobernanza necesarias para alimentar soluciones de IA de forma confiable.' },
+  { id: 6,  dim: 'datos', text: 'Nuestros sistemas e infraestructura tecnológica están preparados para integrarse con soluciones y agentes de IA.' },
+
+  { id: 7,  dim: 'gobierno', text: 'Contamos con un mecanismo formal de gobierno de IA que coordina decisiones y gestiona los riesgos éticos.' },
+  { id: 8,  dim: 'gobierno', text: 'Tenemos control real sobre lo que nuestras soluciones de IA hacen y deciden, no solo sobre cómo las implementamos.' },
+
+  { id: 9,  dim: 'cultura', text: 'La organización está abierta al aprendizaje, la prueba y el error en su relación con la IA.' },
+  { id: 10, dim: 'cultura', text: 'Nuestros líderes supervisan de cerca el uso de la IA, sin delegarla por completo ni evitarla por miedo.' },
+
+  { id: 11, dim: 'talento', text: 'Ya hemos rediseñado procesos críticos con IA, y sabemos qué fricciones han surgido en el camino.' },
+  { id: 12, dim: 'talento', text: 'Estamos desarrollando activamente las competencias que las personas necesitan para trabajar con IA.' },
+];
+
+const LEVEL_COPY = {
+  1: { name: 'Explorador',     quote: '"Comenzamos a interesarnos en la IA"', text: 'La organización da sus primeros pasos. Mira con curiosidad el entorno tecnológico y el desarrollo de la IA, pero desde fuera. El cambio aún no es parte de la identidad interna.' },
+  2: { name: 'Experimentador', quote: '"Probamos la IA para aprender"', text: 'Se hacen pilotos con IA. Es una etapa de descubrimiento activo, con aprendizaje por ensayo y error. Todavía sin integración estructural.' },
+  3: { name: 'Integrador',     quote: '"La IA entra en el sistema"', text: 'Comienza la integración de IA en procesos centrales, priorizados en el plan estratégico. Se conectan áreas y la transformación empieza a sentirse.' },
+  4: { name: 'Transformador',  quote: '"Comenzamos a transformar la organización desde la IA"', text: 'La organización gana agilidad y eficiencia con la IA, mejorando la experiencia de cliente y bajando los costos, lo que la lleva a repensar su modelo operativo.' },
+  5: { name: 'Innovador',      quote: '"La IA se instala como el motor de innovación"', text: 'La organización utiliza la IA en el día a día para crear, experimentar y anticipar, pasando a ser parte de su identidad.' },
+};
+
+/* Rangos de energía basados en el marco Survive/Thrive de Kotter */
+const ENERGY_COPY = {
+  survive: {
+    name: 'Modo Protección', cls: 'energy-survive',
+    bullets: ['Actividad sin claridad', 'Comportamiento guiado por el miedo', 'Inversión sin ROI visible', 'Riesgo de burnout'],
+    text: 'Hay actividad de alto estrés, impulsada por el miedo y la ambigüedad. Tus inversiones en IA probablemente priorizan la herramienta antes que el resultado, generando agotamiento y poca claridad.',
+    next: 'El paso que más rinde ahora no es sumar otra herramienta, sino construir convicción real en el Comité Ejecutivo: dimensionar con datos qué está en juego y para qué se está adoptando IA. Sin ese punto de partida, cualquier iniciativa queda expuesta a los primeros roces del cambio.',
+  },
+  transit: {
+    name: 'Modo Tránsito', cls: 'energy-transit',
+    bullets: ['Focos de impulso', 'Sponsorship inconsistente', 'Valor disparejo', 'Riesgo de caer en supervivencia bajo presión'],
+    text: 'Tienes focos reales de impulso, pero el sponsorship es inconsistente y el valor es disparejo entre áreas. La organización está haciendo el trabajo, pero los líderes pueden estar atrapados en el "hype" de la IA más que en resultados.',
+    next: 'El foco ahora es ampliar el sponsorship: pasar de un grupo pequeño de convencidos a una masa crítica de ejecutivos que respalden las iniciativas de forma consistente, apoyados en un gobierno de IA que dé seguridad y alinee criterios entre áreas.',
+  },
+  impulse: {
+    name: 'Modo Transformación', cls: 'energy-impulse',
+    bullets: ['La IA es estratégica', 'El miedo está gestionado', 'La experimentación es disciplinada', 'El valor medible está emergiendo'],
+    text: 'Tu organización tiene propósito y dirección estratégica. La IA es un motor estratégico y el miedo está bien gestionado.',
+    next: 'El desafío ya no es convencer, sino sostener: seguir desarrollando competencias y una cultura de autonomía, experimentación y datos, evaluando y ajustando el modelo operativo para no perder este impulso frente al próximo obstáculo.',
+  },
+};
+
+const BOTTLENECK_COPY = {
+  proposito: 'falta una visión compartida y una convicción real desde la alta dirección sobre el para qué de la IA. Sin ese punto de partida, las iniciativas corren el riesgo de quedar como pilotos aislados, sin el sponsorship necesario para sobrevivir a los primeros roces del cambio. Antes de sumar más herramientas, vale la pena invertir tiempo en dimensionar la oportunidad y construir esa convicción en el Comité Ejecutivo.',
+  valor:     'faltan oportunidades de negocio concretas y medibles, más allá de la eficiencia interna. Es común confundir actividad con impacto: muchos pilotos, pocos casos de uso con presupuesto, responsables y una forma clara de medir el retorno. El siguiente paso es priorizar un número acotado de iniciativas con un caso de negocio real detrás, no solo con potencial.',
+  datos:     'faltan datos, sistemas o infraestructura listos para sostener soluciones de IA de forma confiable. Este es un cuello de botella silencioso: no se nota hasta que un caso de uso prometedor no logra escalar porque los datos no tienen la calidad, disponibilidad o gobernanza necesarias. Vale la pena hacer un inventario honesto de qué tan lista está la base técnica antes de comprometer nuevas iniciativas.',
+  gobierno:  'falta un gobierno de IA que dé seguridad y control real sobre lo que la IA hace y decide. Sin eso, las decisiones quedan libradas al criterio individual de cada equipo, lo que genera inconsistencia, riesgo ético y, paradójicamente, más lentitud para escalar. Un gobierno bien diseñado no frena la innovación: la habilita, dando claridad sobre qué se puede decidir en cada nivel.',
+  cultura:   'falta una cultura y un liderazgo que den espacio seguro para aprender y experimentar con IA. Cuando el error no se tolera, las personas dejan de intentar cosas nuevas por su cuenta, y toda la iniciativa termina dependiendo de unos pocos convencidos. Cambiar esto empieza por cómo los líderes hablan de sus propios errores con IA, no solo de sus éxitos.',
+  talento:   'falta desarrollar las competencias y rediseñar los procesos que la IA requiere para generar valor. Tener acceso a herramientas de IA no es lo mismo que saber usarlas para rediseñar cómo se trabaja; sin ese paso, la IA se queda como un acelerador de tareas individuales, en vez de una palanca real de productividad organizacional.',
+};
+
+const SCALE_LABELS = ['Muy en desacuerdo','En desacuerdo','Mixto / inconsistente','De acuerdo','Totalmente de acuerdo'];
+
+/* ---------- Estado ---------- */
+let state = {
+  step: 0, // 0 = intro, 1..6 = dimensiones, 7 = barrera, 8 = resultado
+  answers: {},
+  barrier: '',
+  aggregate: null,
+  contact: { name:'', email:'', company:'', submitted:false, error:'' },
+};
+
+const app = document.getElementById('app');
+
+function render(){
+  if(state.step === 0) return renderIntro();
+  if(state.step >= 1 && state.step <= DIMENSIONS.length) return renderDimension(state.step);
+  if(state.step === DIMENSIONS.length+1) return renderBarrier();
+  if(state.step === DIMENSIONS.length+2) return renderResult();
+}
+
+function progressBar(currentDim){
+  let html = '<div class="progress">';
+  DIMENSIONS.forEach((d, i)=>{
+    const idx = i+1;
+    let cls = 'node';
+    if(idx < currentDim) cls += ' done';
+    if(idx === currentDim) cls += ' active';
+    html += `<div class="stem"><div class="${cls}"></div><div class="line"></div></div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+/* ---------- Pantalla 0: intro (sin pedir datos de contacto) ---------- */
+function renderIntro(){
+  app.innerHTML = `
+    <h1>Radar Adapsys IA</h1>
+    <p class="lead">Un diagnóstico de ~3 minutos que cruza qué tan avanzada está tu organización en su adopción de IA, con la energía —de supervivencia o de impulso— con la que está avanzando. Al final, verás tu resultado al instante, sin dejar ningún dato.</p>
+    <p class="attrib">Construido por Adapsys, a partir de nuestro modelo de madurez organizacional, el marco de energía de cambio de Kotter, y las dimensiones de preparación para una organización agéntica.</p>
+    <div class="row-end">
+      <button class="btn" id="btn-start">Comenzar diagnóstico →</button>
+    </div>
+  `;
+  document.getElementById('btn-start').onclick = ()=>{
+    state.step = 1;
+    render();
+  };
+}
+
+/* ---------- Pantallas dimensiones ---------- */
+function renderDimension(step){
+  const dim = DIMENSIONS[step-1];
+  const qs = QUESTIONS.filter(q=>q.dim === dim.key);
+  let qHtml = qs.map(q=>{
+    const sel = state.answers[q.id];
+    let btns = '';
+    for(let v=1; v<=5; v++){
+      btns += `<button class="${sel===v?'sel':''}" data-q="${q.id}" data-v="${v}">${v}</button>`;
+    }
+    return `
+      <div class="question">
+        <p>${q.text}</p>
+        <div class="scale">${btns}</div>
+      </div>
+    `;
+  }).join('');
+
+  app.innerHTML = `
+    ${progressBar(step)}
+    <div class="dim-tag">Dimensión ${step} de ${DIMENSIONS.length}</div>
+    <h1>${dim.label}</h1>
+    <p class="lead">Marca qué tan de acuerdo estás con cada afirmación.</p>
+    ${qHtml}
+    <div class="scale-caption"><span>${SCALE_LABELS[0]}</span><span>${SCALE_LABELS[4]}</span></div>
+    <div class="row-between">
+      <button class="btn ghost" id="btn-back">← Atrás</button>
+      <button class="btn" id="btn-next">${step < DIMENSIONS.length ? 'Siguiente →' : 'Continuar →'}</button>
+    </div>
+  `;
+
+  app.querySelectorAll('.scale button').forEach(b=>{
+    b.onclick = ()=>{
+      state.answers[parseInt(b.dataset.q)] = parseInt(b.dataset.v);
+      render();
+    };
+  });
+  document.getElementById('btn-back').onclick = ()=>{
+    if(step === 1){ state.step = 0; } else { state.step -= 1; }
+    render();
+  };
+  document.getElementById('btn-next').onclick = ()=>{
+    const answeredAll = qs.every(q=> state.answers[q.id]);
+    if(!answeredAll) return;
+    state.step += 1;
+    render();
+  };
+}
+
+/* ---------- Pantalla: barrera ---------- */
+function renderBarrier(){
+  app.innerHTML = `
+    <div class="dim-tag">Última pregunta</div>
+    <h1>¿Cuál es hoy tu mayor barrera para avanzar?</h1>
+    <p class="lead">Sin filtros, con tus palabras. Esto nos ayuda a entender qué están viviendo realmente las organizaciones.</p>
+    <textarea id="f-barrier" placeholder="Ej: nos cuesta que el comité se comprometa más allá del discurso...">${escapeHtml(state.barrier)}</textarea>
+    <div class="row-between">
+      <button class="btn ghost" id="btn-back">← Atrás</button>
+      <button class="btn" id="btn-finish">Ver mi resultado →</button>
+    </div>
+  `;
+  document.getElementById('btn-back').onclick = ()=>{ state.step = DIMENSIONS.length; render(); };
+  document.getElementById('btn-finish').onclick = async ()=>{
+    state.barrier = document.getElementById('f-barrier').value.trim();
+    await finishAndCompute();
+  };
+}
+
+/* ---------- Cálculo + guardado agregado (anónimo) ---------- */
+function computeResult(){
+  const dimTotals = {};
+  DIMENSIONS.forEach(d=> dimTotals[d.key] = 0);
+  let total = 0;
+  QUESTIONS.forEach(q=>{
+    const v = state.answers[q.id] || 0;
+    dimTotals[q.dim] += v;
+    total += v;
+  });
+  const avg = total / QUESTIONS.length; // 1-5
+  const level = Math.max(1, Math.min(5, Math.round(avg)));
+  const pct = total / (QUESTIONS.length * 5); // 0-1
+  let energyKey = 'survive';
+  if(pct >= 0.80) energyKey = 'impulse';
+  else if(pct >= 0.56) energyKey = 'transit';
+
+  let bottleneckKey = DIMENSIONS[0].key;
+  let min = Infinity;
+  DIMENSIONS.forEach(d=>{
+    if(dimTotals[d.key] < min){ min = dimTotals[d.key]; bottleneckKey = d.key; }
+  });
+
+  return { total, avg, level, energyKey, bottleneckKey, dimTotals };
+}
+
+async function finishAndCompute(){
+  const result = computeResult();
+  state.result = result;
+
+  /*
+    ---------------------------------------------------------------
+    NOTA PARA PRODUCCIÓN:
+    Este bloque solo guarda CONTEOS AGREGADOS Y ANÓNIMOS (nivel,
+    energía, cuello de botella) en el storage compartido del
+    artefacto — sirve para el contador de "organizaciones
+    diagnosticadas" y para tener un primer pulso de mercado.
+
+    El nombre, email, empresa y el texto de la barrera se piden
+    recién en la pantalla de resultado, y NO se guardan aquí: ese
+    storage es técnicamente visible para cualquiera con el link del
+    artefacto, así que no es el lugar para datos de contacto reales.
+
+    Antes de lanzar esto con tráfico real de LinkedIn, conecta el
+    formulario de "reporte completo" (más abajo, en renderResult) a
+    un envío real hacia tu CRM (HubSpot, Airtable, un Google Form,
+    o un webhook propio) con:
+      { name, email, company, answers, barrier, result }
+    ---------------------------------------------------------------
+  */
+  try{
+    let stats = null;
+    try{
+      const existing = await window.storage.get('radar-stats', true);
+      stats = existing ? JSON.parse(existing.value) : null;
+    }catch(e){ stats = null; }
+    if(!stats){
+      stats = { count: 0, levelCounts: {1:0,2:0,3:0,4:0,5:0}, energyCounts: {survive:0,transit:0,impulse:0}, bottleneckCounts: {} };
+      DIMENSIONS.forEach(d=> stats.bottleneckCounts[d.key] = 0);
+    }
+    stats.count += 1;
+    stats.levelCounts[result.level] = (stats.levelCounts[result.level]||0) + 1;
+    stats.energyCounts[result.energyKey] = (stats.energyCounts[result.energyKey]||0) + 1;
+    stats.bottleneckCounts[result.bottleneckKey] = (stats.bottleneckCounts[result.bottleneckKey]||0) + 1;
+    await window.storage.set('radar-stats', JSON.stringify(stats), true);
+    state.aggregate = stats;
+  }catch(e){
+    console.error('No se pudo actualizar el agregado', e);
+  }
+
+  state.step = DIMENSIONS.length+2;
+  render();
+}
+
+/* ---------- Grilla visual: Nivel (filas) x Energía (columnas) ---------- */
+function renderGrid(level, energyKey){
+  const energyOrder = ['survive','transit','impulse'];
+  const energyLabels = ['Protección','Tránsito','Transformación'];
+  const levelOrder = [5,4,3,2,1]; // arriba = más maduro
+
+  let cap = `<div class="grid-cap">${energyLabels.map(l=>`<span>${l}</span>`).join('')}</div>`;
+
+  let labels = '<div class="grid-labels">';
+  levelOrder.forEach(lv=>{
+    labels += `<div class="lbl">${LEVEL_COPY[lv].name}</div>`;
+  });
+  labels += '</div>';
+
+  let cells = '<div class="grid-cells">';
+  levelOrder.forEach(lv=>{
+    cells += '<div class="grid-row">';
+    energyOrder.forEach(ek=>{
+      const isHit = (lv === level && ek === energyKey);
+      cells += `<div class="grid-cell ${isHit?'hit':''}">${isHit?'<span class="you">TÚ</span>':''}</div>`;
+    });
+    cells += '</div>';
+  });
+  cells += '</div>';
+
+  return `<div class="grid-wrap">${cap}<div class="grid-body">${labels}${cells}</div></div>`;
+}
+
+/* ---------- Pantalla: resultado ---------- */
+function renderLevelLegend(currentLevel){
+  let html = '<div class="legend"><div class="legend-title">Los 5 niveles</div>';
+  for(let lv=1; lv<=5; lv++){
+    const l = LEVEL_COPY[lv];
+    const isCurrent = lv === currentLevel;
+    html += `
+      <div class="legend-item ${isCurrent?'current':''}">
+        <div class="num">${lv}</div>
+        <div class="body">${isCurrent?'<b>':''}${l.name}${isCurrent?'</b>':''} — ${l.quote}</div>
+      </div>
+    `;
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderEnergyLegend(currentKey){
+  const order = [['survive','Supervivencia'], ['transit','Tránsito'], ['impulse','Impulso']];
+  let html = '<div class="legend"><div class="legend-title">Los 3 rangos de energía (Kotter)</div>';
+  order.forEach(([key,label])=>{
+    const e = ENERGY_COPY[key];
+    const isCurrent = key === currentKey;
+    html += `
+      <div class="legend-item ${isCurrent?'current':''}">
+        <div class="num">·</div>
+        <div class="body">${isCurrent?'<b>':''}${e.name}${isCurrent?'</b>':''} — ${e.bullets.join(' · ')}</div>
+      </div>
+    `;
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderResult(){
+  const r = state.result;
+  const level = LEVEL_COPY[r.level];
+  const energy = ENERGY_COPY[r.energyKey];
+  const bottleneckLabel = DIMENSIONS.find(d=>d.key === r.bottleneckKey).label;
+
+  let statLine = '';
+  if(state.aggregate){
+    statLine = `<div class="stat-line">Eres la organización N.º ${state.aggregate.count} en tomar este radar.</div>`;
+  }
+
+  const contactBlock = state.contact.submitted ? `
+    <div class="contact-form">
+      <h3>Listo, gracias${state.contact.name ? ', ' + escapeHtml(state.contact.name.split(' ')[0]) : ''}.</h3>
+      <p>Te vamos a enviar el reporte completo a ${escapeHtml(state.contact.email)}.</p>
+    </div>
+  ` : `
+    <div class="contact-form">
+      <h3>¿Quieres el reporte completo?</h3>
+      <p>Te lo enviamos con información detallada de los resultados por las diferentes variables.</p>
+      <label for="c-name">Nombre</label>
+      <input type="text" id="c-name" placeholder="Tu nombre" value="${escapeHtml(state.contact.name)}" />
+      <label for="c-email">Email</label>
+      <input type="email" id="c-email" placeholder="tu@empresa.com" value="${escapeHtml(state.contact.email)}" />
+      <label for="c-company">Empresa (opcional)</label>
+      <input type="text" id="c-company" placeholder="Nombre de tu organización" value="${escapeHtml(state.contact.company)}" />
+      <div class="error" style="display:${state.contact.error ? 'block':'none'}">${state.contact.error||''}</div>
+      <button class="btn" id="btn-contact-submit">Enviarme el reporte completo</button>
+    </div>
+  `;
+
+  app.innerHTML = `
+    <div class="dim-tag">Tu resultado tiene dos partes</div>
+    <div class="axis-explain">
+      <div class="axis-row"><span class="axis-icon">NIVEL →</span> qué tan avanzada está tu organización en su adopción de IA.</div>
+      <div class="axis-row"><span class="axis-icon">ENERGÍA →</span> con qué combustible avanza: presión y miedo, o convicción y curiosidad.</div>
+    </div>
+
+    ${renderGrid(r.level, r.energyKey)}
+
+    <div class="badge level">Nivel: ${level.name}</div>
+    <div class="badge ${energy.cls}">${energy.name}</div>
+    <h2 class="result-title">Este es tu Radar</h2>
+
+    <p class="result-text">${level.text}</p>
+    ${renderLevelLegend(r.level)}
+
+    <div class="divider"></div>
+
+    <ul class="bullets">${energy.bullets.map(b=>`<li>${b}</li>`).join('')}</ul>
+    <p class="result-text">${energy.text}</p>
+    <div class="next-step"><b>Próximo paso sugerido:</b> ${energy.next}</div>
+    ${renderEnergyLegend(r.energyKey)}
+    ${statLine}
+
+    <div class="divider"></div>
+
+    <div class="bottleneck-box">
+      <div class="k">Tu principal cuello de botella</div>
+      <div style="font-weight:600; margin-bottom:6px;">${bottleneckLabel}</div>
+      <div style="color:var(--muted); font-size:14px; line-height:1.5;">Hoy, ${BOTTLENECK_COPY[r.bottleneckKey]}</div>
+    </div>
+
+    ${contactBlock}
+
+    <div class="cta-row" style="flex-direction:column; gap:8px;">
+      <a class="btn cta-primary" href="mailto:metrics@adapsysgroup.com?subject=Quiero%20hablar%20de%20mi%20Radar%20IA&body=Hola%2C%20mi%20resultado%20fue%20nivel%20${encodeURIComponent(level.name)}%20/%20${encodeURIComponent(energy.name)}." style="text-decoration:none;">Hablar con Adapsys →</a>
+      <button class="cta-secondary" id="btn-restart">Volver a empezar</button>
+    </div>
+    <p class="attrib">Radar Adapsys IA — construido por Adapsys.</p>
+  `;
+
+  if(!state.contact.submitted){
+    document.getElementById('btn-contact-submit').onclick = ()=>{
+      const name = document.getElementById('c-name').value.trim();
+      const email = document.getElementById('c-email').value.trim();
+      const company = document.getElementById('c-company').value.trim();
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      if(!name || !emailOk){
+        state.contact.error = 'Ingresa tu nombre y un email válido.';
+        render();
+        return;
+      }
+      state.contact = { name, email, company, submitted:true, error:'' };
+      /* Ver NOTA PARA PRODUCCIÓN más arriba: aquí es donde va el
+         envío real a tu CRM con { name, email, company, resultado }. */
+      render();
+    };
+  }
+
+  document.getElementById('btn-restart').onclick = ()=>{
+    state = { step:0, answers:{}, barrier:'', aggregate:null, contact:{name:'',email:'',company:'',submitted:false,error:''} };
+    render();
+  };
+}
+
+/* ---------- Utils ---------- */
+function escapeHtml(str){
+  return (str||'').replace(/[&<>"']/g, m=>({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m]));
+}
+
+render();
+</script>
+</body>
+</html>
