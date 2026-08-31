@@ -495,6 +495,58 @@
     font-size:13px;
     margin:-10px 0 16px 0;
   }
+  [hidden]{display:none !important;}
+
+  .consent{
+    font-size:11px;
+    color:var(--muted);
+    line-height:1.45;
+    margin:12px 0 0 0;
+  }
+
+  /* Dirección siempre visible bajo el CTA: la red de seguridad que no depende
+     de que detectemos si el cliente de correo abrió. */
+  .mail-direct{
+    text-align:center;
+    font-size:12px;
+    color:var(--muted);
+    margin:2px 0 0 0;
+  }
+  .mail-direct a{color:var(--sky); text-decoration:none;}
+  .mail-direct a:hover{text-decoration:underline;}
+
+  .mail-fallback{
+    background:rgba(0,0,0,0.22);
+    border:1px solid rgba(127,212,255,0.25);
+    border-radius:12px;
+    padding:16px 18px;
+    margin-top:4px;
+  }
+  .mail-fallback .k{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--sky);
+    margin-bottom:8px;
+  }
+  .mail-fallback p{
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.5;
+    margin:0 0 14px 0;
+  }
+  .mail-fallback p b{color:var(--text);}
+  .fallback-actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .btn.small{
+    font-size:12px;
+    padding:9px 14px;
+    text-decoration:none;
+  }
 </style>
 </head>
 <body>
@@ -505,6 +557,14 @@
 </div>
 
 <script>
+/* ---------- Configuración ---------- */
+/* API de captación (Express + Postgres en Railway). El código vive en server/.
+   Si la API no responde, el diagnóstico funciona igual: todos los envíos son
+   fail-soft y el usuario nunca queda bloqueado por un problema de red. */
+const API_BASE = 'https://radar-api-production-576f.up.railway.app';
+
+const CONTACT_EMAIL = 'metrics@adapsysgroup.com';
+
 /* ---------- Contenido ---------- */
 /* Estas 6 dimensiones fusionan: el instrumento largo de Adapsys
    (Organización / Negocio / Tecnología), el marco de energía de
@@ -582,13 +642,19 @@ const BOTTLENECK_COPY = {
 const SCALE_LABELS = ['Muy en desacuerdo','En desacuerdo','Mixto / inconsistente','De acuerdo','Totalmente de acuerdo'];
 
 /* ---------- Estado ---------- */
-let state = {
-  step: 0, // 0 = intro, 1..6 = dimensiones, 7 = barrera, 8 = resultado
-  answers: {},
-  barrier: '',
-  aggregate: null,
-  contact: { name:'', email:'', company:'', submitted:false, error:'' },
-};
+function initialState(){
+  return {
+    step: 0, // 0 = intro, 1..6 = dimensiones, 7 = barrera, 8 = resultado
+    answers: {},
+    barrier: '',
+    result: null,
+    responseId: null, // id que devuelve la API; enlaza el contacto con la respuesta
+    aggregate: null,
+    contact: { name:'', email:'', company:'', submitted:false, sending:false, error:'' },
+  };
+}
+
+let state = initialState();
 
 const app = document.getElementById('app');
 
@@ -690,8 +756,13 @@ function renderBarrier(){
     </div>
   `;
   document.getElementById('btn-back').onclick = ()=>{ state.step = DIMENSIONS.length; render(); };
-  document.getElementById('btn-finish').onclick = async ()=>{
+  const finishBtn = document.getElementById('btn-finish');
+  finishBtn.onclick = async ()=>{
+    if(finishBtn.disabled) return;
     state.barrier = document.getElementById('f-barrier').value.trim();
+    /* El guardado puede tardar; sin este estado el botón parece muerto. */
+    finishBtn.disabled = true;
+    finishBtn.textContent = 'Calculando…';
     await finishAndCompute();
   };
 }
@@ -726,51 +797,30 @@ async function finishAndCompute(){
   const result = computeResult();
   state.result = result;
 
-  /*
-    ---------------------------------------------------------------
-    NOTA PARA PRODUCCIÓN:
-    Este bloque solo guarda CONTEOS AGREGADOS Y ANÓNIMOS (nivel,
-    energía, cuello de botella) en el storage compartido del
-    artefacto — sirve para el contador de "organizaciones
-    diagnosticadas" y para tener un primer pulso de mercado.
+  /* Fase 1: se guarda la respuesta anónima apenas termina el diagnóstico,
+     deje o no sus datos después. Así no se pierde la barrera que escribió
+     quien nunca llena el formulario de contacto.
 
-    El nombre, email, empresa y el texto de la barrera se piden
-    recién en la pantalla de resultado, y NO se guardan aquí: ese
-    storage es técnicamente visible para cualquiera con el link del
-    artefacto, así que no es el lugar para datos de contacto reales.
-
-    Antes de lanzar esto con tráfico real de LinkedIn, conecta el
-    formulario de "reporte completo" (más abajo, en renderResult) a
-    un envío real hacia tu CRM (HubSpot, Airtable, un Google Form,
-    o un webhook propio) con:
-      { name, email, company, answers, barrier, result }
-    ---------------------------------------------------------------
-  */
-  /* window.storage solo existe dentro de un Artifact de Claude.ai.
-     En un deploy real (Vercel, o cualquier hosting estático) ese
-     objeto no existe, así que el contador simplemente no corre —
-     sin romper el flujo. Para tener un contador real en producción
-     hace falta un backend (API route de Vercel + KV/Upstash/Airtable). */
-  if(typeof window.storage !== 'undefined'){
-    try{
-      let stats = null;
-      try{
-        const existing = await window.storage.get('radar-stats', true);
-        stats = existing ? JSON.parse(existing.value) : null;
-      }catch(e){ stats = null; }
-      if(!stats){
-        stats = { count: 0, levelCounts: {1:0,2:0,3:0,4:0,5:0}, energyCounts: {survive:0,transit:0,impulse:0}, bottleneckCounts: {} };
-        DIMENSIONS.forEach(d=> stats.bottleneckCounts[d.key] = 0);
-      }
-      stats.count += 1;
-      stats.levelCounts[result.level] = (stats.levelCounts[result.level]||0) + 1;
-      stats.energyCounts[result.energyKey] = (stats.energyCounts[result.energyKey]||0) + 1;
-      stats.bottleneckCounts[result.bottleneckKey] = (stats.bottleneckCounts[result.bottleneckKey]||0) + 1;
-      await window.storage.set('radar-stats', JSON.stringify(stats), true);
-      state.aggregate = stats;
-    }catch(e){
-      console.error('No se pudo actualizar el agregado', e);
+     Fail-soft a propósito: si la API está caída, lenta o bloqueada por una
+     extensión, el usuario ve su resultado igual. Nada de lo que pasa aquí
+     puede impedirle llegar a la pantalla que vino a buscar. El servidor
+     recalcula el resultado desde las respuestas crudas, así que no tiene
+     sentido mandárselo. */
+  try{
+    const res = await fetchWithTimeout(`${API_BASE}/api/responses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answers: state.answers, barrier: state.barrier || null }),
+    }, 8000);
+    if(res.ok){
+      const data = await res.json();
+      state.responseId = data.id;
+      if(typeof data.count === 'number') state.aggregate = { count: data.count };
+    }else{
+      console.error('La API rechazó la respuesta:', res.status);
     }
+  }catch(e){
+    console.error('No se pudo guardar la respuesta:', e);
   }
 
   state.step = DIMENSIONS.length+2;
@@ -865,8 +915,9 @@ function renderResult(){
       <input type="email" id="c-email" placeholder="tu@empresa.com" value="${escapeHtml(state.contact.email)}" />
       <label for="c-company">Empresa (opcional)</label>
       <input type="text" id="c-company" placeholder="Nombre de tu organización" value="${escapeHtml(state.contact.company)}" />
-      <div class="error" style="display:${state.contact.error ? 'block':'none'}">${state.contact.error||''}</div>
-      <button class="btn" id="btn-contact-submit">Enviarme el reporte completo</button>
+      <div class="error" style="display:${state.contact.error ? 'block':'none'}">${escapeHtml(state.contact.error)}</div>
+      <button class="btn" id="btn-contact-submit"${state.contact.sending ? ' disabled' : ''}>${state.contact.sending ? 'Enviando…' : 'Enviarme el reporte completo'}</button>
+      <p class="consent">Al enviar, autorizas a Adapsys a contactarte por este correo para entregarte el reporte. Guardamos tus respuestas junto a tus datos y no los compartimos con terceros.</p>
     </div>
   `;
 
@@ -905,39 +956,190 @@ function renderResult(){
     ${contactBlock}
 
     <div class="cta-row" style="flex-direction:column; gap:8px;">
-      <a class="btn cta-primary" href="mailto:metrics@adapsysgroup.com?subject=Quiero%20hablar%20de%20mi%20Radar%20IA&body=Hola%2C%20mi%20resultado%20fue%20nivel%20${encodeURIComponent(level.name)}%20/%20${encodeURIComponent(energy.name)}." style="text-decoration:none;">Hablar con Adapsys →</a>
+      <button class="btn cta-primary" id="btn-talk">Hablar con Adapsys →</button>
+      <div class="mail-fallback" id="mail-fallback" hidden></div>
+      <p class="mail-direct">O escríbenos directamente a <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
       <button class="cta-secondary" id="btn-restart">Volver a empezar</button>
     </div>
     <p class="attrib">Radar Adapsys IA — construido por Adapsys.</p>
   `;
 
   if(!state.contact.submitted){
-    document.getElementById('btn-contact-submit').onclick = ()=>{
+    document.getElementById('btn-contact-submit').onclick = async ()=>{
+      if(state.contact.sending) return;
       const name = document.getElementById('c-name').value.trim();
       const email = document.getElementById('c-email').value.trim();
       const company = document.getElementById('c-company').value.trim();
       const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
       if(!name || !emailOk){
-        state.contact.error = 'Ingresa tu nombre y un email válido.';
+        state.contact = { ...state.contact, name, email, company, error:'Ingresa tu nombre y un email válido.' };
         render();
         return;
       }
-      state.contact = { name, email, company, submitted:true, error:'' };
-      /* Ver NOTA PARA PRODUCCIÓN más arriba: aquí es donde va el
-         envío real a tu CRM con { name, email, company, resultado }. */
+
+      /* Fase 2: se asocia el contacto a la respuesta ya guardada. Si la fase 1
+         falló no tenemos a qué asociarlo, y decírselo es mejor que fingir que
+         se envió. */
+      if(!state.responseId){
+        state.contact = { ...state.contact, name, email, company,
+          error:`No pudimos conectar con nuestro servidor. Escríbenos a ${CONTACT_EMAIL} y te enviamos el reporte.` };
+        render();
+        return;
+      }
+
+      state.contact = { ...state.contact, name, email, company, sending:true, error:'' };
+      render();
+
+      try{
+        const res = await fetchWithTimeout(`${API_BASE}/api/responses/${state.responseId}/contact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, company: company || null }),
+        }, 10000);
+
+        if(res.ok || res.status === 409){
+          /* 409 = ya registrado (doble envío). Para la persona es un éxito. */
+          state.contact = { name, email, company, submitted:true, sending:false, error:'' };
+        }else{
+          state.contact = { ...state.contact, sending:false,
+            error:`No pudimos registrar tus datos. Escríbenos a ${CONTACT_EMAIL} y te enviamos el reporte.` };
+        }
+      }catch(e){
+        console.error('No se pudo enviar el contacto:', e);
+        state.contact = { ...state.contact, sending:false,
+          error:`No pudimos registrar tus datos. Revisa tu conexión o escríbenos a ${CONTACT_EMAIL}.` };
+      }
       render();
     };
   }
 
+  document.getElementById('btn-talk').onclick = openMailClient;
+
   document.getElementById('btn-restart').onclick = ()=>{
-    state = { step:0, answers:{}, barrier:'', aggregate:null, contact:{name:'',email:'',company:'',submitted:false,error:''} };
+    state = initialState();
     render();
   };
+}
+
+/* ---------- Contacto por correo ----------
+   mailto: solo funciona si el sistema operativo tiene un cliente de correo
+   registrado. En Windows sin Outlook de escritorio —el caso mayoritario del
+   tráfico que llega de LinkedIn— el clic no hace absolutamente nada y el
+   visitante queda sin salida. Por eso hay tres capas: el mailto de siempre,
+   un panel de respaldo si detectamos que no se abrió, y la dirección impresa
+   permanentemente bajo el botón, que no depende de ninguna detección. */
+
+function buildMail(){
+  const r = state.result;
+  const level = LEVEL_COPY[r.level];
+  const energy = ENERGY_COPY[r.energyKey];
+  const bottleneck = DIMENSIONS.find(d=>d.key === r.bottleneckKey).label;
+
+  const lines = [
+    'Hola Adapsys,',
+    '',
+    'Tomé el Radar Adapsys IA y me gustaría conversar sobre mi resultado.',
+    '',
+    `Nivel de madurez: ${level.name}`,
+    `Energía de cambio: ${energy.name}`,
+    `Principal cuello de botella: ${bottleneck}`,
+  ];
+  if(state.barrier) lines.push('', `Mi mayor barrera hoy: ${state.barrier}`);
+  lines.push('', '—', 'Enviado desde el Radar Adapsys IA.');
+
+  return { to: CONTACT_EMAIL, subject: 'Quiero hablar de mi Radar IA', body: lines.join('\n') };
+}
+
+const mailtoUrl  = m => `mailto:${m.to}?subject=${encodeURIComponent(m.subject)}&body=${encodeURIComponent(m.body)}`;
+const gmailUrl   = m => `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(m.to)}&su=${encodeURIComponent(m.subject)}&body=${encodeURIComponent(m.body)}`;
+const outlookUrl = m => `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(m.to)}&subject=${encodeURIComponent(m.subject)}&body=${encodeURIComponent(m.body)}`;
+
+async function copyText(text){
+  try{
+    if(navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  }catch(e){ /* sin permiso: probamos el método antiguo */ }
+  /* La Clipboard API no existe en file:// ni en http://, así que igual hace
+     falta el camino viejo. */
+  try{
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly','');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  }catch(e){ return false; }
+}
+
+function showMailFallback(m){
+  const box = document.getElementById('mail-fallback');
+  if(!box || !box.hidden) return;
+
+  box.innerHTML = `
+    <div class="k">¿No se abrió tu correo?</div>
+    <p>Tu equipo no tiene un cliente de correo configurado. Escríbenos a <b>${CONTACT_EMAIL}</b> desde donde prefieras:</p>
+    <div class="fallback-actions">
+      <button class="btn ghost small" id="mf-copy-addr">Copiar dirección</button>
+      <button class="btn ghost small" id="mf-copy-msg">Copiar mensaje</button>
+      <a class="btn ghost small" href="${gmailUrl(m)}" target="_blank" rel="noopener">Abrir en Gmail</a>
+      <a class="btn ghost small" href="${outlookUrl(m)}" target="_blank" rel="noopener">Abrir en Outlook</a>
+    </div>
+  `;
+  box.hidden = false;
+
+  const flash = (btn, ok)=>{
+    const original = btn.dataset.label || btn.textContent;
+    btn.dataset.label = original;
+    btn.textContent = ok ? '✓ Copiado' : 'No se pudo copiar';
+    setTimeout(()=>{ btn.textContent = original; }, 2000);
+  };
+  document.getElementById('mf-copy-addr').onclick = async e =>
+    flash(e.currentTarget, await copyText(m.to));
+  document.getElementById('mf-copy-msg').onclick = async e =>
+    flash(e.currentTarget, await copyText(`Para: ${m.to}\nAsunto: ${m.subject}\n\n${m.body}`));
+}
+
+function openMailClient(){
+  const m = buildMail();
+
+  /* Si el navegador entrega el control a otra aplicación, la pestaña pierde el
+     foco. Si a los 1200 ms seguimos con el foco, nadie abrió nada. Es una
+     heurística: un cliente lento puede hacer aparecer el panel igual, y está
+     bien — es información extra, no un error, y no bloquea nada. */
+  let handedOff = false;
+  const markHandoff = ()=>{ handedOff = true; };
+  window.addEventListener('blur', markHandoff, { once:true });
+  document.addEventListener('visibilitychange', markHandoff, { once:true });
+
+  window.location.href = mailtoUrl(m);
+
+  setTimeout(()=>{
+    window.removeEventListener('blur', markHandoff);
+    document.removeEventListener('visibilitychange', markHandoff);
+    if(!handedOff && document.hasFocus()) showMailFallback(m);
+  }, 1200);
 }
 
 /* ---------- Utils ---------- */
 function escapeHtml(str){
   return (str||'').replace(/[&<>"']/g, m=>({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m]));
+}
+
+/* fetch con corte por tiempo: sin esto, una API lenta deja al usuario
+   esperando indefinidamente frente a un botón que dice "Calculando…". */
+async function fetchWithTimeout(url, options, ms){
+  const controller = new AbortController();
+  const timer = setTimeout(()=> controller.abort(), ms);
+  try{
+    return await fetch(url, { ...options, signal: controller.signal });
+  }finally{
+    clearTimeout(timer);
+  }
 }
 
 render();
