@@ -1,0 +1,5 @@
+# El backend vive en Railway, no en Vercel. Sin esta exclusión Vercel sube
+# server/ al deploy estático y el código queda servido públicamente en
+# https://radar-adapsys-ia.vercel.app/server/src/index.js
+server/
+node_modules/
