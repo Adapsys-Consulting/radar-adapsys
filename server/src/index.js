@@ -1,10 +1,14 @@
 import crypto from 'node:crypto';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { initSchema, pool, query } from './db.js';
 import { computeResult, DIMENSIONS, QUESTION_IDS } from './scoring.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
@@ -98,6 +102,18 @@ function csvCell(value) {
 }
 
 /* ---------- Rutas ---------- */
+
+/**
+ * Panel para ver y descargar las respuestas desde el navegador.
+ * La página en sí no lleva secretos: pide la clave, la guarda en el
+ * localStorage de quien la abre y la manda en la cabecera al pedir el CSV.
+ * Así el token nunca viaja en la URL, donde quedaría en el historial y en
+ * los logs HTTP de Railway.
+ */
+app.get('/admin', (_req, res) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  res.sendFile(join(__dirname, 'admin.html'));
+});
 
 app.get('/health', async (_req, res) => {
   try {
