@@ -28,20 +28,33 @@ En dos fases, para no perder nada de quien no deja sus datos:
 Todos los envíos son **fail-soft**: si la API está caída o lenta, el visitante ve su resultado igual. Lo que nunca
 hace el formulario es afirmar que envió algo que no envió — si falla, lo dice y ofrece el correo directo.
 
-### Bajar los leads
+### Ver y bajar las respuestas
+
+**https://radar-api-production-576f.up.railway.app/admin**
+
+Se pega la clave una vez (queda guardada en ese navegador) y desde ahí se ve el resumen —cuántos diagnósticos,
+cuántos dejaron datos, el reparto por nivel, energía y cuello de botella, la tabla de leads y las barreras
+anónimas— con un botón para bajar el CSV.
+
+La clave es el `ADMIN_TOKEN` de las variables del servicio `radar-api` en Railway. La página no la contiene: la
+guarda en el `localStorage` de quien entra y la manda en la cabecera `Authorization`. Por eso **el token nunca va
+en la URL**, donde quedaría en el historial del navegador y en los logs HTTP de Railway.
+
+Desde la terminal, si se prefiere:
 
 ```bash
 curl -s https://radar-api-production-576f.up.railway.app/api/admin/responses.csv \
   -H "Authorization: Bearer $ADMIN_TOKEN" -o respuestas.csv
 ```
 
-El `ADMIN_TOKEN` está en las variables del servicio `radar-api` en Railway. El CSV trae una fila por respuesta con
-`q1..q12`, la barrera y el contacto, y lleva BOM para que Excel lea bien los acentos.
+El CSV trae una fila por respuesta con `q1..q12`, la barrera y el contacto, y lleva BOM para que Excel lea bien
+los acentos.
 
 ## Endpoints
 
 | Método | Ruta | Para qué |
 |---|---|---|
+| `GET` | `/admin` | Panel para ver y descargar las respuestas |
 | `GET` | `/health` | Healthcheck |
 | `POST` | `/api/responses` | Fase 1 — respuesta anónima. Devuelve `{ id, count }` |
 | `POST` | `/api/responses/:id/contact` | Fase 2 — asocia el contacto |
