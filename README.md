@@ -91,6 +91,24 @@ Para el frontend basta servir la raíz del repo (`python -m http.server 8080`) y
 Si tocas el scoring en un lado, tócalo en los dos. Si divergen, la base guarda un resultado distinto al que el
 usuario vio en pantalla, y nadie se entera hasta que alguien reclama.
 
+## Regenerar la tarjeta de preview y el favicon
+
+Las imágenes del sitio (`og-image.png`, `favicon.ico`, `favicon.svg`,
+`apple-touch-icon.png`) se generan a partir del HTML en [`assets-src/`](assets-src/), así se mantienen sin salir
+de los tokens de marca y sin necesitar un editor gráfico.
+
+1. Sirve el repo: `python -m http.server 8080`
+2. Abre `assets-src/og-image.html` con el viewport en **1200×630** y captura → `og-image.png`
+3. Abre `assets-src/icon.html` con el viewport en **180×180** y captura → `apple-touch-icon.png`
+4. Repite a **32×32** y **16×16**, y arma el `.ico` con ambos (un `.ico` admite PNG embebidos)
+
+`assets-src/` está en `.vercelignore`: es la fuente, no se publica.
+
+**Si cambia el dominio**, hay que actualizar las cuatro URL absolutas de `og:image`, `twitter:image` y `og:url`
+en [`index.html`](index.html) — los scrapers no resuelven rutas relativas, así que una URL vieja deja la tarjeta
+en blanco. Tras cambiarla, refresca la caché de LinkedIn en el
+[Post Inspector](https://www.linkedin.com/post-inspector/); si no, sigue mostrando la versión anterior.
+
 ## Contenido editable
 
 Las 12 preguntas, los textos de cada nivel, los 3 rangos de Kotter y los textos de cuello de botella están al
@@ -128,8 +146,6 @@ dejarlo para después.** Nota para cuando se retome: cambiar el scoring exige ac
 
 ## Otros hallazgos abiertos
 
-- **Sin `<meta name="description">` ni Open Graph.** Al compartir el link en LinkedIn —el caso de uso para el que
-  se construyó— no aparece tarjeta de preview.
 - **`btn-next` falla en silencio** si faltan respuestas: el clic no hace nada y no se explica por qué.
 - **Sin persistencia local:** recargar a mitad del diagnóstico pierde las respuestas.
 - **Accesibilidad:** la escala 1–5 son botones sueltos sin `role="radiogroup"` ni `aria-label`, y la pantalla de

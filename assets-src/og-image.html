@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Fuente de la tarjeta de preview</title>
+<!--
+  Fuente de /og-image.png (1200x630), la tarjeta que se ve al compartir el
+  radar en LinkedIn. No se sirve al público: se abre a 1200x630 y se captura.
+  Para regenerarla, ver README -> "Regenerar la tarjeta de preview".
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#0A0F26; --magenta:#EC1568; --magenta-soft:#FF6FA0;
+    --teal:#2FE0C4; --sky:#7FD4FF; --text:#F2F5FF; --muted:#8D97C4;
+    --border:rgba(255,255,255,0.10);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    width:1200px; height:630px; overflow:hidden;
+    background:
+      radial-gradient(circle at 88% -10%, rgba(127,212,255,0.20), transparent 45%),
+      radial-gradient(circle at 108% 18%, rgba(236,21,104,0.26), transparent 42%),
+      radial-gradient(circle at -8% 108%, rgba(47,224,196,0.18), transparent 45%),
+      var(--bg-deep);
+    color:var(--text); font-family:'Inter',sans-serif;
+    display:flex; align-items:center; gap:64px; padding:0 72px;
+    position:relative;
+  }
+  /* Los mismos anillos decorativos de la tarjeta del radar. */
+  body::before, body::after{
+    content:""; position:absolute; border-radius:50%;
+  }
+  body::before{top:-190px; right:-140px; width:520px; height:520px; border:1px solid rgba(127,212,255,0.30);}
+  body::after{top:-130px; right:-60px; width:340px; height:340px; border:1px solid rgba(236,21,104,0.32);}
+
+  .left{flex:1; position:relative; z-index:1;}
+  .brand{
+    display:flex; align-items:center; gap:12px; margin-bottom:34px;
+    font-family:'Space Grotesk',sans-serif; font-weight:700;
+    letter-spacing:0.10em; font-size:19px; color:var(--muted); text-transform:uppercase;
+  }
+  .brand .dot{
+    width:12px; height:12px; border-radius:50%;
+    background:linear-gradient(135deg,var(--magenta),var(--sky));
+  }
+  h1{
+    font-family:'Space Grotesk',sans-serif; font-weight:700;
+    font-size:66px; line-height:1.05; margin:0 0 26px 0; letter-spacing:-0.015em;
+  }
+  h1 .accent{
+    background:linear-gradient(100deg,var(--magenta-soft),var(--sky));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  p{font-size:24px; line-height:1.45; color:var(--muted); margin:0 0 34px 0; max-width:610px;}
+  /* Sin wrap: apiladas desbalancean el bloque de texto. */
+  .meta{display:flex; gap:10px; flex-wrap:nowrap;}
+  .tag{
+    font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:0.04em;
+    text-transform:uppercase; padding:9px 16px; border-radius:100px; white-space:nowrap;
+    color:var(--sky); background:rgba(127,212,255,0.10); border:1px solid rgba(127,212,255,0.28);
+  }
+  .tag.teal{color:var(--teal); background:rgba(47,224,196,0.10); border-color:rgba(47,224,196,0.30);}
+
+  /* La grilla nivel x energía: el elemento que hace reconocible al radar. */
+  .right{position:relative; z-index:1;}
+  .grid-cap{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+    margin-bottom:12px; padding-left:132px;
+  }
+  .grid-cap span{
+    text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px;
+    letter-spacing:0.05em; text-transform:uppercase; color:var(--muted);
+  }
+  .grid-body{display:flex; gap:8px;}
+  .grid-labels{display:flex; flex-direction:column; gap:8px; width:124px;}
+  .grid-labels .lbl{
+    height:46px; display:flex; align-items:center; justify-content:flex-end;
+    font-size:14px; color:var(--muted); font-family:'IBM Plex Mono',monospace;
+  }
+  .grid-cells{display:flex; flex-direction:column; gap:8px;}
+  .grid-row{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+  .cell{
+    width:82px; height:46px; border-radius:9px;
+    background:rgba(255,255,255,0.045); border:1px solid var(--border);
+  }
+  .cell.hit{
+    background:linear-gradient(135deg,var(--magenta),var(--sky));
+    border-color:transparent; box-shadow:0 0 0 5px rgba(127,212,255,0.16);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600;
+    color:#fff; letter-spacing:0.04em;
+  }
+</style>
+</head>
+<body>
+  <div class="left">
+    <div class="brand"><span class="dot"></span> Adapsys</div>
+    <h1>Radar<br>Adapsys <span class="accent">IA</span></h1>
+    <p>Cruza qué tan avanzada está tu organización en IA con la energía —de miedo o de convicción— con la que avanza.</p>
+    <div class="meta">
+      <span class="tag">12 preguntas · 3 minutos</span>
+      <span class="tag teal">Resultado al instante</span>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="grid-cap"><span>Protección</span><span>Tránsito</span><span>Transformación</span></div>
+    <div class="grid-body">
+      <div class="grid-labels">
+        <div class="lbl">Innovador</div>
+        <div class="lbl">Transformador</div>
+        <div class="lbl">Integrador</div>
+        <div class="lbl">Experimentador</div>
+        <div class="lbl">Explorador</div>
+      </div>
+      <div class="grid-cells">
+        <div class="grid-row"><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+        <div class="grid-row"><div class="cell"></div><div class="cell hit">TÚ</div><div class="cell"></div></div>
+        <div class="grid-row"><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+        <div class="grid-row"><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+        <div class="grid-row"><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

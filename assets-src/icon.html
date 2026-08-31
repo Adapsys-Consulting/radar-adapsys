@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Fuente del favicon</title>
+<!--
+  Fuente de favicon.ico y apple-touch-icon.png. Se abre con el viewport del
+  tamaño deseado y se captura. El diseño tiene que sobrevivir a 16x16: por eso
+  es un punto grueso con el degradado de marca sobre el navy, con un solo
+  anillo. Más detalle que eso se convierte en barro a ese tamaño.
+-->
+<style>
+  html,body{margin:0;padding:0;background:transparent;}
+  body{width:100%;height:100vh;display:flex;align-items:center;justify-content:center;}
+  .tile{
+    width:100%; height:100%;
+    background:linear-gradient(150deg,#141C48,#0A0F26);
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+  }
+  /* Anillo tenue: da la idea de "radar" sin ensuciar a tamaño chico. */
+  .ring{
+    position:absolute;
+    width:78%; height:78%;
+    border-radius:50%;
+    border:6% solid rgba(127,212,255,0.30);
+    border-width:calc(100vh * 0.045);
+    border-style:solid;
+    border-color:rgba(127,212,255,0.32);
+  }
+  .dot{
+    width:46%; height:46%; border-radius:50%;
+    background:linear-gradient(135deg,#EC1568,#7FD4FF);
+  }
+</style>
+</head>
+<body>
+  <div class="tile">
+    <div class="ring"></div>
+    <div class="dot"></div>
+  </div>
+</body>
+</html>
