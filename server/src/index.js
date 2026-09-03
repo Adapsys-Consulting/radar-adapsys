@@ -6,6 +6,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { initSchema, pool, query } from './db.js';
+import { buildReportHtml } from './report.js';
 import { computeResult, DIMENSIONS, QUESTION_IDS } from './scoring.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -113,6 +114,30 @@ function csvCell(value) {
 app.get('/admin', (_req, res) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.sendFile(join(__dirname, 'admin.html'));
+});
+
+/**
+ * Reporte individual. El id es el UUID v4 de la respuesta: 122 bits de
+ * entropía, así que la URL misma es la credencial. Solo se obtiene desde el
+ * panel — nunca se le muestra a quien contesta el diagnóstico.
+ *
+ * Un id inválido y uno inexistente devuelven lo mismo, para no confirmar la
+ * existencia de un reporte a quien esté probando URLs.
+ */
+app.get('/reporte/:id', async (req, res) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+
+  const id = uuidSchema.safeParse(req.params.id);
+  if (!id.success) return res.status(404).type('text/plain').send('Reporte no encontrado.');
+
+  const { rows } = await query(
+    `select id, created_at, answers, barrier, contact_name, contact_company
+       from responses where id = $1`,
+    [id.data]
+  );
+  if (!rows.length) return res.status(404).type('text/plain').send('Reporte no encontrado.');
+
+  res.type('html').send(buildReportHtml(rows[0]));
 });
 
 app.get('/health', async (_req, res) => {

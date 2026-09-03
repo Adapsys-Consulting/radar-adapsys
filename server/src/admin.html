@@ -96,6 +96,14 @@
   .pill.survive{background:rgba(236,21,104,.16); color:var(--magenta-soft); border:1px solid rgba(236,21,104,.35);}
   .pill.transit{background:rgba(255,196,64,.14); color:#FFC940; border:1px solid rgba(255,196,64,.35);}
   .pill.impulse{background:rgba(127,212,255,.16); color:var(--sky); border:1px solid rgba(127,212,255,.35);}
+  td.acciones{white-space:nowrap;}
+  .mini{
+    display:inline-block; appearance:none; cursor:pointer; text-decoration:none;
+    background:transparent; border:1px solid var(--border); color:var(--muted);
+    font-family:'Inter',sans-serif; font-size:11px; padding:5px 10px;
+    border-radius:100px; margin:0 3px 3px 0; transition:border-color .15s, color .15s;
+  }
+  .mini:hover{border-color:var(--sky); color:var(--sky);}
   .empty{color:var(--muted); font-size:14px; padding:28px 0; text-align:center;}
   .foot{color:var(--muted); font-size:12px; margin-top:14px;}
 </style>
@@ -202,6 +210,30 @@ function aObjetos(csv){
     .map(r => Object.fromEntries(head.map((h,i)=>[h, r[i]])));
 }
 
+/* El reporte se sirve desde este mismo origen. */
+const linkReporte = id => `${location.origin}/reporte/${id}`;
+
+/** Correo listo para pegar en Gmail u Outlook. El envío es manual. */
+function textoCorreo(f){
+  const primer = (f.contact_name || '').trim().split(/\s+/)[0] || '';
+  return [
+    `Para: ${f.contact_email}`,
+    'Asunto: Tu reporte del Radar Adapsys IA',
+    '',
+    `Hola${primer ? ' ' + primer : ''},`,
+    '',
+    'Gracias por tomarte el tiempo de responder el Radar Adapsys IA. Acá está tu reporte, con el',
+    'detalle de tus resultados en cada una de las seis dimensiones y las respuestas que diste:',
+    '',
+    linkReporte(f.id),
+    '',
+    'Si quieres que lo revisemos juntos, o llevar el diagnóstico completo al resto de tu equipo,',
+    'respóndeme este correo y coordinamos.',
+    '',
+    'Saludos,',
+  ].join('\n');
+}
+
 function fecha(iso){
   if(!iso) return '';
   const d = new Date(iso);
@@ -260,7 +292,7 @@ function pintar(filas){
     <div class="table-scroll"><table>
       <thead><tr>
         <th>Fecha</th><th>Nombre</th><th>Email</th><th>Empresa</th>
-        <th>Nivel</th><th>Energía</th><th>Cuello de botella</th><th>Su barrera</th>
+        <th>Nivel</th><th>Energía</th><th>Cuello de botella</th><th>Su barrera</th><th>Reporte</th>
       </tr></thead>
       <tbody>${conContacto.map(f=>`
         <tr>
@@ -272,9 +304,31 @@ function pintar(filas){
           <td><span class="pill ${f.energy_key}">${ENERGIAS[f.energy_key]||f.energy_key}</span></td>
           <td>${DIMENSIONES[f.bottleneck_key]||f.bottleneck_key}</td>
           <td class="barrier">${esc(f.barrier) || '—'}</td>
+          <td class="acciones">
+            <a class="mini" href="${linkReporte(f.id)}" target="_blank" rel="noopener">Ver</a>
+            <button class="mini" data-link="${f.id}">Copiar link</button>
+            <button class="mini" data-correo="${f.id}">Copiar correo</button>
+          </td>
         </tr>`).join('')}
       </tbody>
     </table></div>` : '<div class="empty">Todavía nadie ha dejado sus datos.</div>';
+
+  /* El envío es manual: estos botones son para pegar en Gmail u Outlook. */
+  const flash = (btn, ok) => {
+    const original = btn.dataset.label || btn.textContent;
+    btn.dataset.label = original;
+    btn.textContent = ok ? '✓ Copiado' : 'No se pudo';
+    setTimeout(() => { btn.textContent = original; }, 2000);
+  };
+  $('leads').querySelectorAll('[data-link]').forEach(b => {
+    b.onclick = async e => flash(e.currentTarget, await copyText(linkReporte(b.dataset.link)));
+  });
+  $('leads').querySelectorAll('[data-correo]').forEach(b => {
+    b.onclick = async e => {
+      const f = conContacto.find(x => x.id === b.dataset.correo);
+      flash(e.currentTarget, await copyText(textoCorreo(f)));
+    };
+  });
 
   $('anon').innerHTML = anonimas.length ? `
     <div class="table-scroll"><table>

@@ -16,30 +16,13 @@
  * test/scoring.test.js verifica la paridad.
  */
 
-export const DIMENSIONS = [
-  { key: 'proposito', label: 'Propósito y convicción' },
-  { key: 'valor', label: 'Uso, impacto y modelo de negocio' },
-  { key: 'datos', label: 'Datos, sistemas e infraestructura' },
-  { key: 'gobierno', label: 'Gobierno de la IA' },
-  { key: 'cultura', label: 'Cultura y liderazgo' },
-  { key: 'talento', label: 'Talento y capacidades' },
-];
+/* El orden de DIMENSIONS y el mapeo pregunta->dimensión salen de content.js,
+   que es el espejo verificado de index.html. Tenerlos aquí también significaría
+   dos copias que pueden desincronizarse dentro del propio servidor: si
+   difirieran, el reporte mostraría un cuello de botella distinto al guardado. */
+export { DIMENSIONS, QUESTIONS } from './content.js';
 
-/** id de pregunta -> dimensión. Mismo mapeo que QUESTIONS en index.html. */
-export const QUESTIONS = [
-  { id: 1, dim: 'proposito' },
-  { id: 2, dim: 'proposito' },
-  { id: 3, dim: 'valor' },
-  { id: 4, dim: 'valor' },
-  { id: 5, dim: 'datos' },
-  { id: 6, dim: 'datos' },
-  { id: 7, dim: 'gobierno' },
-  { id: 8, dim: 'gobierno' },
-  { id: 9, dim: 'cultura' },
-  { id: 10, dim: 'cultura' },
-  { id: 11, dim: 'talento' },
-  { id: 12, dim: 'talento' },
-];
+import { DIMENSIONS, QUESTIONS } from './content.js';
 
 export const QUESTION_IDS = QUESTIONS.map((q) => q.id);
 

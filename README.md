@@ -50,11 +50,48 @@ curl -s https://radar-api-production-576f.up.railway.app/api/admin/responses.csv
 El CSV trae una fila por respuesta con `q1..q12`, la barrera y el contacto, y lleva BOM para que Excel lea bien
 los acentos.
 
+## Enviar el reporte a quien lo pidió
+
+El envío es **manual**, uno por uno. En el panel, cada persona que dejó sus datos tiene tres botones:
+
+- **Ver** — abre su reporte.
+- **Copiar link** — el link para pegar donde quieras.
+- **Copiar correo** — el mensaje completo ya redactado con el link adentro, listo para pegar en Gmail u Outlook.
+
+El reporte vive en `/reporte/<id>`. Ese `id` es el UUID v4 de la respuesta: 122 bits de entropía, así que **la URL
+misma es la credencial** — quien la tenga puede abrir ese reporte, y nadie puede adivinarla. No se le muestra a
+quien contesta el diagnóstico; solo sale del panel.
+
+### Cómo está armado
+
+Se estructura alrededor del **perfil por dimensión**, no del nivel y la energía. La razón está en los datos: de
+las primeras 15 respuestas reales, 11 (73 %) cayeron en la misma celda "Nivel 3 / Tránsito" —consecuencia del
+[pendiente conocido](#pendiente-conocido-los-dos-ejes-no-son-independientes)— mientras que las 15 tuvieron un
+perfil de seis dimensiones distinto. Encabezado por el nivel, 11 personas recibirían el mismo texto.
+
+**El reporte nunca afirma un cuello de botella que no existe.** Si varias dimensiones empatan en el mínimo las
+nombra todas; si empatan 4 o más dice que el perfil es casi parejo y pivotea a lo que sí se despega; si empatan
+las seis, lo dice y no señala ninguna. Es un caso real, no teórico: 2 de las primeras 15 respuestas tienen cinco
+dimensiones empatadas.
+
+### Al tocar el reporte
+
+```bash
+cd server
+npm test                                        # incluye la paridad de contenido
+ADMIN_TOKEN=... npm run verificar-reportes      # renderiza los reportes reales
+```
+
+Lo segundo baja las respuestas de producción, genera el reporte de cada una, revisa las invariantes (que no
+invente cuellos de botella, que no queden secciones vacías, que no se filtre un email) y deja los HTML en disco
+para abrirlos en el navegador.
+
 ## Endpoints
 
 | Método | Ruta | Para qué |
 |---|---|---|
 | `GET` | `/admin` | Panel para ver y descargar las respuestas |
+| `GET` | `/reporte/:id` | Reporte individual. El UUID es la credencial |
 | `GET` | `/health` | Healthcheck |
 | `POST` | `/api/responses` | Fase 1 — respuesta anónima. Devuelve `{ id, count }` |
 | `POST` | `/api/responses/:id/contact` | Fase 2 — asocia el contacto |
@@ -83,13 +120,20 @@ npm test                  # paridad de scoring, ver abajo
 Para el frontend basta servir la raíz del repo (`python -m http.server 8080`) y apuntar `API_BASE` en
 [`index.html`](index.html) a donde corresponda. `http://localhost:8080` ya está en la allowlist de producción.
 
-### La prueba que no puedes saltarte
+### Las pruebas que no puedes saltarte
 
-`server/test/scoring.test.js` **extrae el `computeResult()` real del `index.html`** y lo compara contra
-`server/src/scoring.js` con 2000 combinaciones aleatorias, además de umbrales, redondeo y empates.
+`index.html` es estático en Vercel y el servidor está en Railway: no pueden compartir un import, así que el
+scoring y el contenido están duplicados a propósito. Dos pruebas evalúan **los objetos reales del `index.html`**
+y los comparan contra el espejo del servidor:
 
-Si tocas el scoring en un lado, tócalo en los dos. Si divergen, la base guarda un resultado distinto al que el
-usuario vio en pantalla, y nadie se entera hasta que alguien reclama.
+- `server/test/scoring.test.js` — `computeResult()`, con 2000 combinaciones aleatorias además de umbrales,
+  redondeo y empates. Si divergen, la base guarda un resultado distinto al que el usuario vio en pantalla.
+- `server/test/content.test.js` — las 12 preguntas, los textos de nivel, energía y cuello de botella, y las
+  etiquetas de la escala. Si divergen, el reporte le cita al cliente una pregunta con distinta redacción de la
+  que efectivamente contestó.
+
+Si tocas el scoring o el copy en un lado, tócalo en los dos. Nadie se entera de una divergencia hasta que alguien
+reclama.
 
 ## Regenerar la tarjeta de preview y el favicon
 
