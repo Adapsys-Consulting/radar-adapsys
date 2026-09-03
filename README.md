@@ -52,11 +52,18 @@ los acentos.
 
 ## Enviar el reporte a quien lo pidió
 
-El envío es **manual**, uno por uno. En el panel, cada persona que dejó sus datos tiene tres botones:
+El envío es **manual**, uno por uno. En el panel, cada persona que dejó sus datos tiene cuatro botones:
 
-- **Ver** — abre su reporte.
-- **Copiar link** — el link para pegar donde quieras.
-- **Copiar correo** — el mensaje completo ya redactado con el link adentro, listo para pegar en Gmail u Outlook.
+- **↓ PDF** — descarga el reporte listo para adjuntar, como `Radar-Adapsys-IA-Cecilia-Mlp.pdf`.
+- **Ver** — abre su reporte en el navegador.
+- **Copiar correo** — el mensaje ya redactado, listo para pegar en Gmail u Outlook.
+- **Copiar link** — por si prefieres mandar el enlace en vez del adjunto.
+
+El PDF se genera con Chromium sobre la imagen oficial de Playwright (`server/Dockerfile`). **El tag de la imagen
+y la versión de `playwright-core` tienen que ser el mismo número**: si divergen, el binario no se encuentra y la
+descarga falla en runtime. Al subir uno, sube el otro.
+
+Que el PDF falle no se lleva puesto el reporte: la ruta devuelve 503 y la página sigue sirviéndose igual.
 
 El reporte vive en `/reporte/<id>`. Ese `id` es el UUID v4 de la respuesta: 122 bits de entropía, así que **la URL
 misma es la credencial** — quien la tenga puede abrir ese reporte, y nadie puede adivinarla. No se le muestra a
