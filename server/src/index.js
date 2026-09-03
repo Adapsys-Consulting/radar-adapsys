@@ -6,6 +6,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { initSchema, pool, query } from './db.js';
+import { nombreArchivo, renderPdf } from './pdf.js';
 import { buildReportHtml } from './report.js';
 import { computeResult, DIMENSIONS, QUESTION_IDS } from './scoring.js';
 
@@ -55,6 +56,15 @@ const writeLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { error: 'Demasiadas solicitudes. Intenta de nuevo en unos minutos.' },
+});
+
+/* Generar un PDF levanta un Chromium: mucho más caro que servir HTML. */
+const pdfLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: 'Demasiadas descargas seguidas. Intenta de nuevo en unos minutos.',
 });
 
 /* ---------- Validación ---------- */
@@ -138,6 +148,39 @@ app.get('/reporte/:id', async (req, res) => {
   if (!rows.length) return res.status(404).type('text/plain').send('Reporte no encontrado.');
 
   res.type('html').send(buildReportHtml(rows[0]));
+});
+
+/**
+ * El mismo reporte, en PDF descargable. Se genera con Chromium y por eso lleva
+ * su propio límite: un PDF cuesta ~300 MB y un segundo de CPU, muy por encima de
+ * servir el HTML. Sin tope, quien tenga un UUID puede tumbar el servicio.
+ */
+app.get('/reporte/:id/pdf', pdfLimiter, async (req, res) => {
+  const id = uuidSchema.safeParse(req.params.id);
+  if (!id.success) return res.status(404).type('text/plain').send('Reporte no encontrado.');
+
+  const { rows } = await query(
+    `select id, created_at, answers, barrier, contact_name, contact_company
+       from responses where id = $1`,
+    [id.data]
+  );
+  if (!rows.length) return res.status(404).type('text/plain').send('Reporte no encontrado.');
+
+  try {
+    const pdf = await renderPdf(buildReportHtml(rows[0]));
+    const nombre = nombreArchivo(rows[0]);
+    res.setHeader('Content-Type', 'application/pdf');
+    // filename simple para clientes viejos, filename* para los acentos.
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${nombre}"; filename*=UTF-8''${encodeURIComponent(nombre)}`
+    );
+    res.send(pdf);
+  } catch (err) {
+    // Que falle el PDF no puede llevarse puesto el reporte: la página sigue ahí.
+    console.error('[pdf] no se pudo generar:', err);
+    res.status(503).type('text/plain').send('No pudimos generar el PDF en este momento. El reporte sigue disponible en su enlace.');
+  }
 });
 
 app.get('/health', async (_req, res) => {

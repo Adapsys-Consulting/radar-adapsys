@@ -104,6 +104,9 @@
     border-radius:100px; margin:0 3px 3px 0; transition:border-color .15s, color .15s;
   }
   .mini:hover{border-color:var(--sky); color:var(--sky);}
+  /* El PDF es la acción principal: es lo que se adjunta al correo. */
+  .mini.destacado{border-color:rgba(47,224,196,.45); color:var(--teal); font-weight:600;}
+  .mini.destacado:hover{border-color:var(--teal); color:var(--teal);}
   .empty{color:var(--muted); font-size:14px; padding:28px 0; text-align:center;}
   .foot{color:var(--muted); font-size:12px; margin-top:14px;}
 </style>
@@ -212,6 +215,7 @@ function aObjetos(csv){
 
 /* El reporte se sirve desde este mismo origen. */
 const linkReporte = id => `${location.origin}/reporte/${id}`;
+const linkPdf = id => `${location.origin}/reporte/${id}/pdf`;
 
 /** Correo listo para pegar en Gmail u Outlook. El envío es manual. */
 function textoCorreo(f){
@@ -222,15 +226,15 @@ function textoCorreo(f){
     '',
     `Hola${primer ? ' ' + primer : ''},`,
     '',
-    'Gracias por tomarte el tiempo de responder el Radar Adapsys IA. Acá está tu reporte, con el',
-    'detalle de tus resultados en cada una de las seis dimensiones y las respuestas que diste:',
-    '',
-    linkReporte(f.id),
+    'Gracias por tomarte el tiempo de responder el Radar Adapsys IA. Te adjunto tu reporte, con el',
+    'detalle de tus resultados en cada una de las seis dimensiones y las respuestas que diste.',
     '',
     'Si quieres que lo revisemos juntos, o llevar el diagnóstico completo al resto de tu equipo,',
     'respóndeme este correo y coordinamos.',
     '',
     'Saludos,',
+    '',
+    '(No olvides adjuntar el PDF.)',
   ].join('\n');
 }
 
@@ -305,9 +309,10 @@ function pintar(filas){
           <td>${DIMENSIONES[f.bottleneck_key]||f.bottleneck_key}</td>
           <td class="barrier">${esc(f.barrier) || '—'}</td>
           <td class="acciones">
+            <a class="mini destacado" href="${linkPdf(f.id)}">↓ PDF</a>
             <a class="mini" href="${linkReporte(f.id)}" target="_blank" rel="noopener">Ver</a>
-            <button class="mini" data-link="${f.id}">Copiar link</button>
             <button class="mini" data-correo="${f.id}">Copiar correo</button>
+            <button class="mini" data-link="${f.id}">Copiar link</button>
           </td>
         </tr>`).join('')}
       </tbody>

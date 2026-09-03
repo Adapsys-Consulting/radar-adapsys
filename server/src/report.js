@@ -529,6 +529,63 @@ export function buildReportHtml(fila) {
   .cierre a.mail:hover{text-decoration:underline;}
   .pie{color:var(--muted); font-size:12px; text-align:center; margin-top:24px;}
 
+  /* Botón de descarga: fuera del PDF, obviamente. */
+  .acciones-doc{display:flex; justify-content:flex-end; margin-bottom:14px;}
+  .btn-pdf{
+    display:inline-flex; align-items:center; gap:7px; text-decoration:none;
+    background:transparent; border:1px solid var(--border); color:var(--muted);
+    font-family:'Inter',sans-serif; font-size:13px; padding:8px 16px; border-radius:100px;
+    transition:border-color .15s, color .15s;
+  }
+  .btn-pdf:hover{border-color:var(--sky); color:var(--sky);}
+
+  /* ---------- Impresión y PDF ----------
+     El reporte es oscuro y todo su color viene de fondos, que los navegadores no
+     imprimen por defecto. Estas reglas hacen dos cosas: forzar que los fondos se
+     pinten, y llevar el margen de página a cero, porque el área de margen se
+     imprime blanca y dejaría un marco alrededor del contenido en cada hoja.
+     El aire vive adentro del documento, no en el margen de la página. */
+  @media print{
+    @page{ size:A4; margin:0; }
+
+    *{
+      -webkit-print-color-adjust:exact !important;
+      print-color-adjust:exact !important;
+    }
+
+    /* Fondo plano y sólido: los degradados radiales del body se comportan de
+       forma impredecible entre páginas. Los acentos de marca siguen vivos en la
+       portada, que tiene su propio degradado como fondo de elemento. */
+    html, body{
+      background:var(--bg-deep) !important;
+      padding:0 !important;
+      margin:0 !important;
+    }
+    .doc{
+      max-width:none;
+      padding:14mm 13mm;
+    }
+
+    .no-print{display:none !important;}
+
+    /* Nada se parte por la mitad entre dos hojas. */
+    section, .portada, .dim-bloque, .pregunta, blockquote, .dp-fila, .grilla, .kpi{
+      break-inside:avoid;
+      page-break-inside:avoid;
+    }
+    h1, h2{ break-after:avoid; page-break-after:avoid; }
+    section{ margin-bottom:14px; }
+
+    /* A4 útil son ~184 mm: algo más angosto que en pantalla. */
+    body{ font-size:13px; }
+    h1{ font-size:27px; }
+    h2{ font-size:18px; }
+    .cuerpo{ font-size:13px; }
+    .dp-cab, .dp-fila{ grid-template-columns:165px 1fr 96px; }
+    .dp-label{ font-size:12px; }
+    a{ color:var(--sky) !important; }
+  }
+
   @media (max-width:640px){
     section, .portada{padding:22px 18px;}
     h1{font-size:26px;}
@@ -547,6 +604,10 @@ export function buildReportHtml(fila) {
 <body>
 <div class="doc">
   <div class="marca"><span class="punto"></span> ADAPSYS · Radar Adapsys IA</div>
+
+  <div class="acciones-doc no-print">
+    <a class="btn-pdf" href="/reporte/${encodeURIComponent(fila.id)}/pdf">↓ Descargar en PDF</a>
+  </div>
 
   <div class="portada">
     <div class="kicker">Reporte de resultados</div>
