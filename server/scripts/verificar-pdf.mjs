@@ -155,7 +155,7 @@ for (const fila of casos) {
 
   // 4. El contenido, verificado sobre la página que se imprimió
   const debeEstar = ['Radar Adapsys IA', 'Tu perfil en seis dimensiones', 'Gobierno de la IA',
-    'Cultura y liderazgo', 'Respuesta por respuesta', 'Cómo se calcula'];
+    'Cultura y liderazgo', 'Respuesta por respuesta', '¿Conversamos sobre esto?'];
   const faltan = debeEstar.filter((t) => !texto.includes(t));
   if (faltan.length) problemas.push(`${quien}: falta contenido: ${faltan.join(' / ')}`);
   if (fila.contact_name && !texto.includes(fila.contact_name.split(/\s+/)[0])) {

@@ -319,25 +319,6 @@ function seccionContexto(a) {
     </section>`;
 }
 
-function seccionMetodologia(a) {
-  return `
-    <section class="metodologia">
-      <h2>Cómo se calcula</h2>
-      <p class="cuerpo">El instrumento son 12 afirmaciones en una escala de 1 (muy en desacuerdo) a 5 (totalmente
-      de acuerdo), repartidas en 6 dimensiones de 2 preguntas cada una. El puntaje de cada dimensión es el
-      promedio de sus dos preguntas, en la misma escala de 1 a 5. El nivel de madurez y el modo de energía se
-      derivan del puntaje global; el detalle fino está en el perfil por dimensión, que es donde se ve qué avanza
-      y qué no dentro de una misma organización.</p>
-      <p class="cuerpo">Este radar es la versión pública y corta, construida a partir del modelo de madurez
-      organizacional de Adapsys, el marco de energía de cambio de Kotter y las dimensiones de preparación para
-      una organización agéntica. El instrumento completo de 40 preguntas es el que usamos en diagnósticos 1:1, y
-      es el que permite bajar de la fotografía general a la conversación por área.</p>
-      <p class="cuerpo aviso">Una precisión honesta: esto refleja la percepción de <b>una sola persona</b> en un
-      momento dado. Su mayor valor no es el puntaje en sí, sino contrastarlo con el de otras personas de la
-      organización — donde las miradas difieren suele estar la conversación más útil.</p>
-    </section>`;
-}
-
 /* ---------- Documento ---------- */
 
 export function buildReportHtml(fila) {
@@ -422,7 +403,6 @@ export function buildReportHtml(fila) {
   .cuerpo{font-size:15px; margin:0 0 14px; color:var(--text);}
   .cuerpo:last-child{margin-bottom:0;}
   .lectura{color:var(--muted); font-size:14px;}
-  .aviso{color:var(--muted); font-size:13.5px; border-left:2px solid rgba(127,212,255,.35); padding-left:14px;}
 
   /* Dot-plot */
   .dotplot{margin:22px 0 6px;}
@@ -631,7 +611,6 @@ export function buildReportHtml(fila) {
   ${seccionBarrera(fila)}
   ${seccionDetalle(a)}
   ${seccionContexto(a)}
-  ${seccionMetodologia(a)}
 
   <section class="cierre">
     <h2>¿Conversamos sobre esto?</h2>
