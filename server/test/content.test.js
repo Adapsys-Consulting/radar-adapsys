@@ -23,7 +23,7 @@ import {
   QUESTIONS,
   SCALE_LABELS,
   DIMENSION_INTRO,
-  nombreDeNivel,
+  nivelDeDimension,
 } from '../src/content.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -106,12 +106,17 @@ test('cada dimensión tiene exactamente 2 preguntas', () => {
   }
 });
 
-test('nombreDeNivel usa la misma regla de redondeo que el nivel global', () => {
-  assert.equal(nombreDeNivel(1), 'Explorador');
-  assert.equal(nombreDeNivel(2.4), 'Experimentador');
-  assert.equal(nombreDeNivel(2.5), 'Integrador'); // .5 hacia arriba, como Math.round
-  assert.equal(nombreDeNivel(5), 'Innovador');
+test('nivelDeDimension usa la misma regla de redondeo que el nivel global', () => {
+  assert.equal(nivelDeDimension(1), 1);
+  assert.equal(nivelDeDimension(2.4), 2);
+  assert.equal(nivelDeDimension(2.5), 3); // .5 hacia arriba, como Math.round
+  assert.equal(nivelDeDimension(5), 5);
   // El puntaje de dimensión nunca sale de 1..5, pero el clamp no debe romperse.
-  assert.equal(nombreDeNivel(0), 'Explorador');
-  assert.equal(nombreDeNivel(9), 'Innovador');
+  assert.equal(nivelDeDimension(0), 1);
+  assert.equal(nivelDeDimension(9), 5);
+
+  // Y el escalón tiene que existir en la escalera, no ser un índice al vacío.
+  for (const p of [0, 1, 2.5, 3.7, 5, 9]) {
+    assert.ok(LEVEL_COPY[nivelDeDimension(p)], `no hay nivel para el puntaje ${p}`);
+  }
 });

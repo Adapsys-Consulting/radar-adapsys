@@ -8,18 +8,19 @@
  * seis dimensiones distinto. Un reporte encabezado por el nivel le entregaría
  * a 11 personas el mismo texto; encabezado por el perfil, cada una recibe algo
  * que es suyo.
+ *
+ * El documento se emite en español o en inglés. Este archivo no contiene copy:
+ * toda palabra sale del diccionario de i18n/ que recibe por parámetro, y de
+ * content.js solo toma estructura. Si estás agregando una frase, va en los DOS
+ * diccionarios — test/i18n.test.js falla si queda en uno solo.
  */
 
-import {
-  BOTTLENECK_COPY,
-  DIMENSION_INTRO,
-  DIMENSIONS,
-  ENERGY_COPY,
-  LEVEL_COPY,
-  QUESTIONS,
-  SCALE_LABELS,
-  nombreDeNivel,
-} from './content.js';
+/* De content.js sale solo la ESTRUCTURA —el orden de las dimensiones y el mapeo
+   pregunta->dimensión—, nunca el texto. Las palabras salen del diccionario del
+   idioma que se esté renderizando. Esa separación es la que hace imposible que
+   una traducción mueva un puntaje: computeResult() también lee content.js. */
+import { DIMENSIONS, QUESTIONS } from './content.js';
+import { IDIOMA_POR_DEFECTO, diccionario, resolverIdioma } from './i18n/index.js';
 import { computeResult } from './scoring.js';
 
 const CONTACT_EMAIL = 'metrics@adapsysgroup.com';
@@ -31,7 +32,7 @@ const CONTACT_EMAIL = 'metrics@adapsysgroup.com';
  * Se recalcula con computeResult() en vez de leer las columnas derivadas de la
  * base, para que el reporte sea internamente consistente pase lo que pase.
  */
-export function analizar(fila) {
+export function analizar(fila, copy = diccionario(IDIOMA_POR_DEFECTO)) {
   const respuestas = fila.answers || {};
   const resultado = computeResult(respuestas);
 
@@ -39,13 +40,13 @@ export function analizar(fila) {
     const puntaje = resultado.dimTotals[d.key] / 2; // 2 preguntas -> escala 1-5
     return {
       key: d.key,
-      label: d.label,
-      intro: DIMENSION_INTRO[d.key],
+      label: copy.dimensiones[d.key],
+      intro: copy.intros[d.key],
       puntaje,
-      nivel: nombreDeNivel(puntaje),
+      nivel: copy.nombreDeNivel(puntaje),
       preguntas: QUESTIONS.filter((q) => q.dim === d.key).map((q) => {
         const valor = Number(respuestas[q.id]) || 0;
-        return { id: q.id, texto: q.text, valor, etiqueta: SCALE_LABELS[valor - 1] || '—' };
+        return { id: q.id, texto: copy.preguntas[q.id], valor, etiqueta: copy.escala[valor - 1] || '—' };
       }),
     };
   });
@@ -84,27 +85,17 @@ export function analizar(fila) {
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 
-/** ["A"] -> "A" | ["A","B"] -> "A y B" | ["A","B","C"] -> "A, B y C" */
-export function listar(nombres) {
-  if (nombres.length <= 1) return nombres[0] || '';
-  return nombres.slice(0, -1).join(', ') + ' y ' + nombres[nombres.length - 1];
-}
+/* El formato de número, la conjunción de las listas y la fecha larga son parte
+   del idioma, no de este archivo: viven en copy.fmt. Acá solo queda el
+   escapado, que es igual en todos los idiomas. */
 
-/** 3 -> "3" ; 3.5 -> "3,5" (coma decimal, como se escribe en español) */
-const num = (n) => String(Number(n).toFixed(1)).replace(/\.0$/, '').replace('.', ',');
-
-function fechaLarga(valor) {
-  const d = valor instanceof Date ? valor : new Date(valor);
-  if (Number.isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat('es-CL', {
-    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Santiago',
-  }).format(d);
-}
+/** Los labels de un grupo de dimensiones, listados y escapados para HTML. */
+const nombresDe = (copy, dims) => esc(copy.fmt.listar(dims.map((p) => p.label)));
 
 /* ---------- Piezas visuales ---------- */
 
 /** Dot-plot: una fila por dimensión sobre un eje compartido 1–5. */
-function dotPlot(analisis) {
+function dotPlot(analisis, copy) {
   const pos = (v) => ((v - 1) / 4) * 100; // 1..5 -> 0..100 %
 
   const filas = analisis.perfil
@@ -123,7 +114,7 @@ function dotPlot(analisis) {
           <span class="dp-promedio" style="left:${pos(analisis.promedio)}%"></span>
           <span class="dp-punto ${tono}" style="left:${pos(p.puntaje)}%"></span>
         </div>
-        <div class="dp-valor"><b>${num(p.puntaje)}</b><span>${esc(p.nivel)}</span></div>
+        <div class="dp-valor"><b>${copy.fmt.num(p.puntaje)}</b><span>${esc(p.nivel)}</span></div>
       </div>`;
     })
     .join('');
@@ -135,24 +126,28 @@ function dotPlot(analisis) {
         .join('')}</div><div></div></div>
       ${filas}
       <div class="dp-pie">
-        <span class="k-promedio"></span> Tu promedio general: <b>${num(analisis.promedio)}</b>
+        <span class="k-promedio"></span> ${copy.perfil.promedio(copy.fmt.num(analisis.promedio))}
       </div>
     </div>`;
 }
 
 /** La grilla 5×3 que la persona ya vio en pantalla, como cierre. */
-function grilla(level, energyKey) {
+function grilla(level, energyKey, copy) {
+  /* Las claves de energía y el orden de los escalones son estructura, no copy:
+     definen qué celda se ilumina. Solo las etiquetas cambian de idioma. */
   const energias = ['survive', 'transit', 'impulse'];
-  const etiquetas = ['Protección', 'Tránsito', 'Transformación'];
-  const niveles = [5, 4, 3, 2, 1];
+  const etiquetas = copy.contexto.etiquetasEnergia;
+  const escalones = [5, 4, 3, 2, 1];
 
-  const celdas = niveles
+  const celdas = escalones
     .map(
       (lv) =>
         `<div class="g-fila">${energias
           .map((ek) => {
             const aqui = lv === level && ek === energyKey;
-            return `<div class="g-celda ${aqui ? 'aqui' : ''}">${aqui ? '<span>AQUÍ</span>' : ''}</div>`;
+            return `<div class="g-celda ${aqui ? 'aqui' : ''}">${
+              aqui ? `<span>${esc(copy.contexto.aqui)}</span>` : ''
+            }</div>`;
           })
           .join('')}</div>`
     )
@@ -160,21 +155,21 @@ function grilla(level, energyKey) {
 
   return `
     <div class="grilla">
-      <div class="g-cab">${etiquetas.map((l) => `<span>${l}</span>`).join('')}</div>
+      <div class="g-cab">${etiquetas.map((l) => `<span>${esc(l)}</span>`).join('')}</div>
       <div class="g-cuerpo">
-        <div class="g-labels">${niveles.map((lv) => `<div>${esc(LEVEL_COPY[lv].name)}</div>`).join('')}</div>
+        <div class="g-labels">${escalones.map((lv) => `<div>${esc(copy.niveles[lv].name)}</div>`).join('')}</div>
         <div class="g-celdas">${celdas}</div>
       </div>
     </div>`;
 }
 
 /** Una dimensión con sus 2 preguntas y lo que marcó en cada una. */
-function bloqueDimension(p, variante) {
+function bloqueDimension(p, variante, copy) {
   return `
     <div class="dim-bloque ${variante}">
       <div class="dim-cab">
         <div class="dim-nombre">${esc(p.label)}</div>
-        <div class="dim-puntaje">${num(p.puntaje)} / 5 · ${esc(p.nivel)}</div>
+        <div class="dim-puntaje">${copy.dimBloque.puntaje(copy.fmt.num(p.puntaje), esc(p.nivel))}</div>
       </div>
       <p class="dim-intro">${esc(p.intro)}</p>
       ${p.preguntas
@@ -191,41 +186,35 @@ function bloqueDimension(p, variante) {
 
 /* ---------- Secciones ---------- */
 
-function seccionFriccion(a) {
+function seccionFriccion(a, copy) {
+  const n = copy.fmt.num;
+
   if (a.perfilPlano) {
+    const t = copy.friccion.plano;
     return `
       <section>
-        <h2>Tu perfil es parejo</h2>
-        <p class="cuerpo">Las seis dimensiones quedaron exactamente en el mismo punto
-        (<b>${num(a.perfil[0].puntaje)} de 5</b>). No hay una que se despegue hacia arriba ni hacia abajo, así
-        que este diagnóstico <b>no identifica un cuello de botella</b>: señalar uno sería arbitrario.</p>
-        <p class="cuerpo">Un perfil así suele significar una de dos cosas, y distinguirlas importa: puede que la
-        organización avance de forma genuinamente pareja, o puede que las respuestas se hayan quedado en el punto
-        medio porque no había suficiente información para diferenciar. Vale la pena contrastarlo con otras
-        personas de la organización antes de sacar conclusiones.</p>
+        <h2>${esc(t.h2)}</h2>
+        <p class="cuerpo">${t.p1(n(a.perfil[0].puntaje))}</p>
+        <p class="cuerpo">${t.p2}</p>
       </section>`;
   }
 
-  const nombres = listar(a.masBajas.map((p) => p.label));
+  const nombres = nombresDe(copy, a.masBajas);
 
   // 4 o 5 dimensiones empatadas abajo. Imprimir cinco bloques con sus cinco
   // párrafos de cuello de botella sería un muro de texto que además entierra la
   // señal: cuando casi todo está al mismo nivel, lo que informa es lo que se
   // despega, no la lista de lo que no.
   if (a.casiParejo) {
+    const t = copy.friccion.casiParejo;
     const alta = a.masAltas[0];
     const bajas = a.preguntasMasBajas;
     return `
       <section>
-        <h2>Tu perfil es casi parejo</h2>
-        <p class="cuerpo"><b>${a.masBajas.length} de las 6 dimensiones</b> quedaron exactamente en el mismo
-        punto (${num(a.masBajas[0].puntaje)} de 5): ${esc(nombres)}. Con un perfil así,
-        <b>señalar un cuello de botella sería arbitrario</b>: ninguna se despega de las otras.</p>
-        <p class="cuerpo">Lo que sí se distingue es <b>${esc(alta.label)}</b>, con ${num(alta.puntaje)} de 5.
-        Ese contraste es la información útil acá: el resto del sistema avanza parejo y esa dimensión va por
-        delante.</p>
-        <p class="cuerpo">A nivel de afirmación puntual, donde más bajo marcaste fue
-        ${bajas.length > 1 ? 'en estas' : 'en esta'} (${bajas[0].valor} de 5):</p>
+        <h2>${esc(t.h2)}</h2>
+        <p class="cuerpo">${t.p1(a.masBajas.length, n(a.masBajas[0].puntaje), nombres)}</p>
+        <p class="cuerpo">${t.p2(esc(alta.label), n(alta.puntaje))}</p>
+        <p class="cuerpo">${t.p3(bajas.length, bajas[0].valor)}</p>
         ${bajas
           .map(
             (q) => `
@@ -238,118 +227,135 @@ function seccionFriccion(a) {
       </section>`;
   }
 
+  const t = copy.friccion.normal;
   const varias = a.masBajas.length > 1;
   return `
     <section>
-      <h2>Dónde está tu mayor fricción</h2>
+      <h2>${esc(t.h2)}</h2>
       <p class="cuerpo">${
         varias
-          ? `Hay <b>${a.masBajas.length} dimensiones empatadas</b> en tu punto más bajo (${num(a.masBajas[0].puntaje)} de 5): <b>${esc(nombres)}</b>. Ninguna es "la" barrera por sí sola.`
-          : `Tu punto más bajo está en <b>${esc(nombres)}</b>, con ${num(a.masBajas[0].puntaje)} de 5.`
+          ? t.varias(a.masBajas.length, n(a.masBajas[0].puntaje), nombres)
+          : t.una(nombres, n(a.masBajas[0].puntaje))
       }</p>
       ${a.masBajas
         .map(
           (p) => `
-        ${bloqueDimension(p, 'friccion')}
-        <p class="cuerpo lectura">Hoy, ${esc(BOTTLENECK_COPY[p.key])}</p>`
+        ${bloqueDimension(p, 'friccion', copy)}
+        <p class="cuerpo lectura">${esc(t.lectura(copy.cuellos[p.key]))}</p>`
         )
         .join('')}
     </section>`;
 }
 
-function seccionFortaleza(a) {
+function seccionFortaleza(a, copy) {
   if (a.perfilPlano) return '';
 
-  const nombres = listar(a.masAltas.map((p) => p.label));
+  const t = copy.fortaleza;
+  const n = copy.fmt.num;
+  const nombres = nombresDe(copy, a.masAltas);
   const varias = a.masAltas.length > 1;
 
   // Con 4 o más empatadas arriba pasa lo mismo que abajo: la lista deja de
   // informar. Se nombran sin desplegar un bloque por cada una.
   const intro = a.casiParejo
-    ? `Estas son las dos afirmaciones detrás de <b>${esc(nombres)}</b>, la dimensión que se despega en tu perfil.`
+    ? t.casiParejo(nombres)
     : varias
-      ? `<b>${esc(nombres)}</b> comparten tu puntaje más alto (${num(a.masAltas[0].puntaje)} de 5). Es desde donde conviene apalancar lo que venga después.`
-      : `<b>${esc(nombres)}</b> es tu dimensión más fuerte, con ${num(a.masAltas[0].puntaje)} de 5. Es desde donde conviene apalancar lo que venga después.`;
+      ? t.varias(nombres, n(a.masAltas[0].puntaje))
+      : t.una(nombres, n(a.masAltas[0].puntaje));
 
   return `
     <section>
-      <h2>Dónde tienes terreno ganado</h2>
+      <h2>${esc(t.h2)}</h2>
       <p class="cuerpo">${intro}</p>
-      ${a.masAltas.length <= 3 ? a.masAltas.map((p) => bloqueDimension(p, 'fortaleza')).join('') : ''}
+      ${a.masAltas.length <= 3 ? a.masAltas.map((p) => bloqueDimension(p, 'fortaleza', copy)).join('') : ''}
     </section>`;
 }
 
-function seccionDetalle(a) {
+function seccionDetalle(a, copy) {
+  const t = copy.detalle;
   return `
     <section>
-      <h2>Respuesta por respuesta</h2>
-      <p class="cuerpo">Las doce afirmaciones que contestaste, agrupadas por dimensión, con lo que marcaste en
-      cada una. Es la materia prima de todo lo anterior.</p>
-      ${a.perfil.map((p) => bloqueDimension(p, '')).join('')}
+      <h2>${esc(t.h2)}</h2>
+      <p class="cuerpo">${esc(t.cuerpo)}</p>
+      ${t.nota ? `<p class="cuerpo lectura">${esc(t.nota)}</p>` : ''}
+      ${a.perfil.map((p) => bloqueDimension(p, '', copy)).join('')}
     </section>`;
 }
 
-function seccionBarrera(fila) {
+function seccionBarrera(fila, copy) {
+  /* Lo que la persona escribió va tal cual, en el idioma en que lo escribió.
+     Traducirle sus propias palabras sería ponerle en la boca algo que no dijo. */
   const texto = (fila.barrier || '').trim();
   if (!texto) return '';
   return `
     <section>
-      <h2>Tu barrera, en tus palabras</h2>
-      <p class="cuerpo">Esto fue lo que escribiste cuando te preguntamos qué te impide avanzar hoy:</p>
+      <h2>${esc(copy.barrera.h2)}</h2>
+      <p class="cuerpo">${esc(copy.barrera.cuerpo)}</p>
       <blockquote>${esc(texto)}</blockquote>
     </section>`;
 }
 
-function seccionContexto(a) {
-  const nivel = LEVEL_COPY[a.resultado.level];
-  const energia = ENERGY_COPY[a.resultado.energyKey];
+function seccionContexto(a, copy) {
+  const t = copy.contexto;
+  const nivel = copy.niveles[a.resultado.level];
+  const energia = copy.energias[a.resultado.energyKey];
   return `
     <section>
-      <h2>El contexto general</h2>
-      <p class="cuerpo">Además del detalle por dimensión, el radar ubica a tu organización en dos ejes: cuánto ha
-      avanzado en su adopción de IA, y con qué energía lo está haciendo. Es la lectura que viste en pantalla.</p>
+      <h2>${esc(t.h2)}</h2>
+      <p class="cuerpo">${esc(t.cuerpo)}</p>
       <div class="badges">
-        <span class="badge nivel">Nivel: ${esc(nivel.name)}</span>
+        <span class="badge nivel">${esc(t.badgeNivel(nivel.name))}</span>
         <span class="badge energia-${esc(a.resultado.energyKey)}">${esc(energia.name)}</span>
       </div>
-      ${grilla(a.resultado.level, a.resultado.energyKey)}
-      <p class="cuerpo"><b>${esc(nivel.name)}</b> — ${esc(nivel.quote)}. ${esc(nivel.text)}</p>
-      <p class="cuerpo"><b>${esc(energia.name)}</b> — ${esc(energia.text)}</p>
+      ${grilla(a.resultado.level, a.resultado.energyKey, copy)}
+      <p class="cuerpo">${t.nivelLinea(esc(nivel.name), esc(nivel.quote), esc(nivel.text))}</p>
+      <p class="cuerpo">${t.energiaLinea(esc(energia.name), esc(energia.text))}</p>
       <ul class="vinetas">${energia.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>
     </section>`;
 }
 
 /* ---------- Documento ---------- */
 
-export function buildReportHtml(fila) {
-  const a = analizar(fila);
+export function buildReportHtml(fila, lang = IDIOMA_POR_DEFECTO) {
+  const codigo = resolverIdioma(lang);
+  const copy = diccionario(codigo);
+  const a = analizar(fila, copy);
+  const n = copy.fmt.num;
+
   const nombre = (fila.contact_name || '').trim();
   const empresa = (fila.contact_company || '').trim();
   const primerNombre = nombre ? nombre.split(/\s+/)[0] : '';
-  const fecha = fechaLarga(fila.created_at);
+  const fecha = copy.fmt.fecha(fila.created_at);
 
-  const bajas = listar(a.masBajas.map((p) => p.label));
-  const altas = listar(a.masAltas.map((p) => p.label));
+  const bajas = nombresDe(copy, a.masBajas);
+  const altas = nombresDe(copy, a.masAltas);
+
+  /* Los enlaces del documento arrastran el idioma actual. Sin esto, la página
+     en inglés ofrecería un PDF en español. El español no lleva sufijo: es el
+     default, y su URL sigue siendo la que ya está circulando por correo. */
+  const ruta = `/reporte/${encodeURIComponent(fila.id)}`;
+  const conIdioma = (base, cod) => (cod === IDIOMA_POR_DEFECTO ? base : `${base}?lang=${cod}`);
+  const otroIdioma = copy.doc.otroIdioma;
 
   // Con 4 o 5 dimensiones empatadas abajo, llamarlas "tu mayor fricción"
   // contradiría a la sección siguiente, que dice —correctamente— que señalar un
   // cuello de botella sería arbitrario. Acá el titular es lo que se despega.
   let lectura;
   if (a.perfilPlano) {
-    lectura = `Las seis dimensiones quedaron en el mismo punto: ${num(a.perfil[0].puntaje)} de 5.`;
+    lectura = copy.perfil.lectura.plano(n(a.perfil[0].puntaje));
   } else if (a.casiParejo) {
-    lectura = `Lo que se despega es <b>${esc(altas)}</b>. Las otras ${a.masBajas.length} quedaron todas en el mismo punto.`;
+    lectura = copy.perfil.lectura.casiParejo(altas, a.masBajas.length);
   } else {
-    lectura = `Tu terreno más firme está en <b>${esc(altas)}</b>. Tu mayor fricción, en <b>${esc(bajas)}</b>.`;
+    lectura = copy.perfil.lectura.normal(altas, bajas);
   }
 
   return `<!DOCTYPE html>
-<html lang="es">
+<html lang="${esc(copy.htmlLang)}">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex, nofollow" />
-<title>Reporte · Radar Adapsys IA${empresa ? ' · ' + esc(empresa) : ''}</title>
+<title>${esc(copy.doc.titulo(empresa))}</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='p' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23EC1568'/%3E%3Cstop offset='1' stop-color='%237FD4FF'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%230A0F26'/%3E%3Ccircle cx='50' cy='50' r='36.5' fill='none' stroke='%237FD4FF' stroke-opacity='.32' stroke-width='4.5'/%3E%3Ccircle cx='50' cy='50' r='23' fill='url(%23p)'/%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -510,7 +516,7 @@ export function buildReportHtml(fila) {
   .pie{color:var(--muted); font-size:12px; text-align:center; margin-top:24px;}
 
   /* Botón de descarga: fuera del PDF, obviamente. */
-  .acciones-doc{display:flex; justify-content:flex-end; margin-bottom:14px;}
+  .acciones-doc{display:flex; justify-content:flex-end; gap:8px; margin-bottom:14px;}
   .btn-pdf{
     display:inline-flex; align-items:center; gap:7px; text-decoration:none;
     background:transparent; border:1px solid var(--border); color:var(--muted);
@@ -583,44 +589,44 @@ export function buildReportHtml(fila) {
 </head>
 <body>
 <div class="doc">
-  <div class="marca"><span class="punto"></span> ADAPSYS · Radar Adapsys IA</div>
+  <div class="marca"><span class="punto"></span> ${esc(copy.doc.marca)}</div>
 
   <div class="acciones-doc no-print">
-    <a class="btn-pdf" href="/reporte/${encodeURIComponent(fila.id)}/pdf">↓ Descargar en PDF</a>
+    <a class="btn-pdf" href="${esc(conIdioma(ruta, otroIdioma.codigo))}">${esc(otroIdioma.etiqueta)}</a>
+    <a class="btn-pdf" href="${esc(conIdioma(ruta + '/pdf', codigo))}">${esc(copy.doc.btnPdf)}</a>
   </div>
 
   <div class="portada">
-    <div class="kicker">Reporte de resultados</div>
-    <h1>${primerNombre ? esc(primerNombre) + ', esto' : 'Esto'} es lo que dijeron tus respuestas</h1>
+    <div class="kicker">${esc(copy.doc.kicker)}</div>
+    <h1>${esc(copy.doc.h1(primerNombre))}</h1>
     <p class="quien">${[nombre, empresa].filter(Boolean).map(esc).join(' · ')}${
       (nombre || empresa) && fecha ? ' · ' : ''
-    }${fecha ? 'Diagnóstico del ' + esc(fecha) : ''}</p>
+    }${fecha ? esc(copy.doc.fechaLinea(fecha)) : ''}</p>
   </div>
 
   <section>
-    <h2>Tu perfil en seis dimensiones</h2>
-    <p class="cuerpo">El radar mide seis dimensiones por separado. Aquí está tu puntaje en cada una, sobre un
-    mismo eje de 1 a 5, para que se vea de una sola mirada qué avanza y qué se queda atrás dentro de tu
-    organización.</p>
-    ${dotPlot(a)}
+    <h2>${esc(copy.perfil.h2)}</h2>
+    <p class="cuerpo">${esc(copy.perfil.cuerpo)}</p>
+    ${dotPlot(a, copy)}
     <p class="cuerpo lectura">${lectura}</p>
   </section>
 
-  ${seccionFriccion(a)}
-  ${seccionFortaleza(a)}
-  ${seccionBarrera(fila)}
-  ${seccionDetalle(a)}
-  ${seccionContexto(a)}
+  ${seccionFriccion(a, copy)}
+  ${seccionFortaleza(a, copy)}
+  ${seccionBarrera(fila, copy)}
+  ${seccionDetalle(a, copy)}
+  ${seccionContexto(a, copy)}
 
   <section class="cierre">
-    <h2>¿Conversamos sobre esto?</h2>
-    <p class="cuerpo">Si quieres revisar estos resultados con nosotros, o llevar el diagnóstico completo al resto
-    de tu equipo, escríbenos a <a class="mail" href="mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(
-      'Conversemos sobre mi Radar IA'
-    )}">${CONTACT_EMAIL}</a>.</p>
+    <h2>${esc(copy.cierre.h2)}</h2>
+    <p class="cuerpo">${copy.cierre.cuerpo(
+      `<a class="mail" href="mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(
+        copy.cierre.asunto
+      )}">${CONTACT_EMAIL}</a>`
+    )}</p>
   </section>
 
-  <p class="pie">Radar Adapsys IA — construido por Adapsys.</p>
+  <p class="pie">${esc(copy.doc.pie)}</p>
 </div>
 </body>
 </html>`;

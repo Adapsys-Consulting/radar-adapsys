@@ -107,6 +107,12 @@
   /* El PDF es la acción principal: es lo que se adjunta al correo. */
   .mini.destacado{border-color:rgba(47,224,196,.45); color:var(--teal); font-weight:600;}
   .mini.destacado:hover{border-color:var(--teal); color:var(--teal);}
+  /* Idioma del reporte de esa persona. Gobierna el PDF, el "Ver", el link y el correo. */
+  .mini.seg{padding:5px 9px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.04em;}
+  .mini.seg.activo{
+    border-color:var(--sky); color:var(--sky);
+    background:rgba(127,212,255,.12); font-weight:600;
+  }
   .empty{color:var(--muted); font-size:14px; padding:28px 0; text-align:center;}
   .foot{color:var(--muted); font-size:12px; margin-top:14px;}
 </style>
@@ -213,13 +219,39 @@ function aObjetos(csv){
     .map(r => Object.fromEntries(head.map((h,i)=>[h, r[i]])));
 }
 
+/* Idioma del reporte, elegido por persona.
+   La encuesta es solo en español, así que quien contesta nunca declara su
+   idioma: se elige acá, al momento de enviar. El español no lleva sufijo en la
+   URL porque es el default, y así los links ya enviados siguen sirviendo. */
+const idiomaPorFila = new Map();
+const idiomaDe = id => idiomaPorFila.get(id) || 'es';
+const sufijoIdioma = lang => (lang === 'es' ? '' : `?lang=${lang}`);
+
 /* El reporte se sirve desde este mismo origen. */
-const linkReporte = id => `${location.origin}/reporte/${id}`;
-const linkPdf = id => `${location.origin}/reporte/${id}/pdf`;
+const linkReporte = (id, lang = idiomaDe(id)) => `${location.origin}/reporte/${id}${sufijoIdioma(lang)}`;
+const linkPdf = (id, lang = idiomaDe(id)) => `${location.origin}/reporte/${id}/pdf${sufijoIdioma(lang)}`;
 
 /** Correo listo para pegar en Gmail u Outlook. El envío es manual. */
-function textoCorreo(f){
+function textoCorreo(f, lang = idiomaDe(f.id)){
   const primer = (f.contact_name || '').trim().split(/\s+/)[0] || '';
+
+  if(lang === 'en') return [
+    `To: ${f.contact_email}`,
+    'Subject: Your Adapsys AI Radar report',
+    '',
+    `Hi${primer ? ' ' + primer : ''},`,
+    '',
+    'Thanks for taking the time to complete the Adapsys AI Radar. Your report is attached, with the',
+    'detail of your results across each of the six dimensions and the answers you gave.',
+    '',
+    'If you would like to go through it together, or take the full assessment to the rest of your',
+    'team, just reply to this email and we will set it up.',
+    '',
+    'Kind regards,',
+    '',
+    '(Do not forget to attach the PDF.)',
+  ].join('\n');
+
   return [
     `Para: ${f.contact_email}`,
     'Asunto: Tu reporte del Radar Adapsys IA',
@@ -308,9 +340,11 @@ function pintar(filas){
           <td><span class="pill ${f.energy_key}">${ENERGIAS[f.energy_key]||f.energy_key}</span></td>
           <td>${DIMENSIONES[f.bottleneck_key]||f.bottleneck_key}</td>
           <td class="barrier">${esc(f.barrier) || '—'}</td>
-          <td class="acciones">
-            <a class="mini destacado" href="${linkPdf(f.id)}">↓ PDF</a>
-            <a class="mini" href="${linkReporte(f.id)}" target="_blank" rel="noopener">Ver</a>
+          <td class="acciones" data-fila="${f.id}">
+            <button class="mini seg activo" data-lang="es" title="Reporte en español">ES</button>
+            <button class="mini seg" data-lang="en" title="Report in English">EN</button>
+            <a class="mini destacado" data-pdf href="${linkPdf(f.id, 'es')}">↓ PDF</a>
+            <a class="mini" data-ver href="${linkReporte(f.id, 'es')}" target="_blank" rel="noopener">Ver</a>
             <button class="mini" data-correo="${f.id}">Copiar correo</button>
             <button class="mini" data-link="${f.id}">Copiar link</button>
           </td>
@@ -325,6 +359,18 @@ function pintar(filas){
     btn.textContent = ok ? '✓ Copiado' : 'No se pudo';
     setTimeout(() => { btn.textContent = original; }, 2000);
   };
+  /* Cambiar el idioma reapunta los enlaces de esa fila. Los botones de copiar
+     leen el idioma al momento del clic, así que no hay que tocarlos. */
+  $('leads').querySelectorAll('[data-lang]').forEach(b => {
+    b.onclick = e => {
+      const celda = e.currentTarget.closest('[data-fila]');
+      const id = celda.dataset.fila;
+      idiomaPorFila.set(id, e.currentTarget.dataset.lang);
+      celda.querySelectorAll('[data-lang]').forEach(o => o.classList.toggle('activo', o === e.currentTarget));
+      celda.querySelector('[data-pdf]').href = linkPdf(id);
+      celda.querySelector('[data-ver]').href = linkReporte(id);
+    };
+  });
   $('leads').querySelectorAll('[data-link]').forEach(b => {
     b.onclick = async e => flash(e.currentTarget, await copyText(linkReporte(b.dataset.link)));
   });

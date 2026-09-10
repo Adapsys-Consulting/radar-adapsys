@@ -19,6 +19,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildReportHtml } from '../src/report.js';
 import { QUESTIONS } from '../src/content.js';
+import { DICCIONARIOS, IDIOMAS } from '../src/i18n/index.js';
 import { nombreArchivo, renderPdfConTexto } from '../src/pdf.js';
 
 const API = process.env.API_BASE || 'https://radar-api-production-576f.up.railway.app';
@@ -126,12 +127,17 @@ const casos = [...todas.filter((f) => f.contact_name), todas.find((f) => !f.cont
 mkdirSync(SALIDA, { recursive: true });
 const problemas = [];
 
-for (const fila of casos) {
-  const quien = fila.contact_name || 'anónimo';
+/* Cada caso se genera en los dos idiomas: el PDF tiene su propio modo de falla
+   —las tipografías— y no hay razón para suponer que se comporta igual con el
+   texto en inglés, que es más largo en varias secciones. */
+for (const fila of casos) for (const codigo of IDIOMAS) {
+  const d = DICCIONARIOS[codigo];
+  const quien = `${fila.contact_name || 'anónimo'} [${codigo}]`;
   process.stdout.write(`generando ${quien}… `);
 
-  const { pdf, texto: renderizado } = await renderPdfConTexto(buildReportHtml(fila));
-  const nombre = fila.contact_name ? nombreArchivo(fila) : `control-anonimo.pdf`;
+  const { pdf, texto: renderizado } = await renderPdfConTexto(buildReportHtml(fila, codigo));
+  const sufijo = codigo === 'es' ? '' : `-${codigo}`;
+  const nombre = fila.contact_name ? nombreArchivo(fila, codigo) : `control-anonimo${sufijo}.pdf`;
   writeFileSync(join(SALIDA, nombre), pdf);
 
   const crudo = pdf.toString('latin1');
@@ -154,16 +160,22 @@ for (const fila of casos) {
   }
 
   // 4. El contenido, verificado sobre la página que se imprimió
-  const debeEstar = ['Radar Adapsys IA', 'Tu perfil en seis dimensiones', 'Gobierno de la IA',
-    'Cultura y liderazgo', 'Respuesta por respuesta', '¿Conversamos sobre esto?'];
+  const debeEstar = [d.doc.marca, d.perfil.h2, d.dimensiones.gobierno,
+    d.dimensiones.cultura, d.detalle.h2, d.cierre.h2];
   const faltan = debeEstar.filter((t) => !texto.includes(t));
   if (faltan.length) problemas.push(`${quien}: falta contenido: ${faltan.join(' / ')}`);
   if (fila.contact_name && !texto.includes(fila.contact_name.split(/\s+/)[0])) {
     problemas.push(`${quien}: no lo saluda por su nombre`);
   }
-  // Las 12 afirmaciones tienen que estar citadas.
-  const citadas = QUESTIONS.filter((q) => texto.includes(q.text.slice(0, 45))).length;
+  // Las 12 afirmaciones tienen que estar citadas, en el idioma del documento.
+  const citadas = QUESTIONS.filter((q) => texto.includes(d.preguntas[q.id].slice(0, 45))).length;
   if (citadas < 12) problemas.push(`${quien}: solo ${citadas} de 12 afirmaciones aparecen en el documento`);
+  // Y nada del otro idioma se puede haber colado en el impreso.
+  for (const otro of IDIOMAS.filter((c) => c !== codigo)) {
+    const fugas = [DICCIONARIOS[otro].perfil.h2, DICCIONARIOS[otro].detalle.h2, DICCIONARIOS[otro].cierre.h2]
+      .filter((t) => texto.includes(t));
+    if (fugas.length) problemas.push(`${quien}: se filtró texto en ${otro}: ${fugas.join(' / ')}`);
+  }
 
   // 5. Es texto seleccionable, no una imagen del reporte
   const ops = operadoresDeTexto(pdf);

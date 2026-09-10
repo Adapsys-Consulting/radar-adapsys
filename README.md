@@ -52,8 +52,10 @@ los acentos.
 
 ## Enviar el reporte a quien lo pidió
 
-El envío es **manual**, uno por uno. En el panel, cada persona que dejó sus datos tiene cuatro botones:
+El envío es **manual**, uno por uno. En el panel, cada persona que dejó sus datos tiene un selector de idioma y
+cuatro botones:
 
+- **ES · EN** — el idioma del reporte de esa persona. Gobierna los cuatro botones de su fila.
 - **↓ PDF** — descarga el reporte listo para adjuntar, como `Radar-Adapsys-IA-Cecilia-Mlp.pdf`.
 - **Ver** — abre su reporte en el navegador.
 - **Copiar correo** — el mensaje ya redactado, listo para pegar en Gmail u Outlook.
@@ -68,6 +70,28 @@ Que el PDF falle no se lleva puesto el reporte: la ruta devuelve 503 y la págin
 El reporte vive en `/reporte/<id>`. Ese `id` es el UUID v4 de la respuesta: 122 bits de entropía, así que **la URL
 misma es la credencial** — quien la tenga puede abrir ese reporte, y nadie puede adivinarla. No se le muestra a
 quien contesta el diagnóstico; solo sale del panel.
+
+### En español o en inglés
+
+El mismo `id` sirve los dos idiomas: `/reporte/<id>` en español y `/reporte/<id>?lang=en` en inglés australiano
+(*organisation*, *prioritise*, fecha `10 September 2026`, decimal con punto). El PDF sigue la misma regla y sale
+como `Adapsys-AI-Radar-Cecilia-Mlp.pdf`. **El español no lleva sufijo** porque es el default: los enlaces que ya
+mandaste por correo siguen funcionando tal como están.
+
+Un `lang` desconocido cae al español en vez de dar 404. El 404 está reservado para el `id`, que es la credencial:
+un parámetro mal tipeado no puede esconderle el reporte a quien tiene el enlace correcto.
+
+**La encuesta es solo en español.** El inglés existe para el documento que envías, no para el instrumento, así
+que quien lo lee en inglés está viendo una **traducción de las afirmaciones que leyó en pantalla en español** — y
+el reporte lo dice, en la sección "Answer by answer". Lo único que nunca se traduce es la barrera que la persona
+escribió: son sus palabras.
+
+El copy de cada idioma vive en [`server/src/i18n/`](server/src/i18n/), un archivo por idioma. `es.js` **importa**
+el contenido del instrumento de `content.js` en vez de copiarlo, para que siga habiendo un solo español. `en.js`
+trae su propia traducción y **nunca alimenta el scoring**: `computeResult()` lee `content.js` y nada más, así que
+un error de traducción no puede mover un puntaje ni reordenar una dimensión.
+
+Sumar un tercer idioma es agregar un archivo y registrarlo en `i18n/index.js`.
 
 ### Cómo está armado
 
@@ -85,20 +109,24 @@ dimensiones empatadas.
 
 ```bash
 cd server
-npm test                                        # incluye la paridad de contenido
-ADMIN_TOKEN=... npm run verificar-reportes      # renderiza los reportes reales
+npm test                                        # incluye la paridad de contenido y de idiomas
+npm run verificar-reportes                      # solo los casos sintéticos, sin red
+ADMIN_TOKEN=... npm run verificar-reportes      # + los reportes reales de producción
 ```
 
-Lo segundo baja las respuestas de producción, genera el reporte de cada una, revisa las invariantes (que no
-invente cuellos de botella, que no queden secciones vacías, que no se filtre un email) y deja los HTML en disco
-para abrirlos en el navegador.
+Lo segundo baja las respuestas de producción, genera el reporte de cada una **en los dos idiomas**, revisa las
+invariantes (que no invente cuellos de botella, que no queden secciones vacías, que no se filtre un email, que no
+se filtre un título del otro idioma) y deja los HTML en disco para abrirlos en el navegador — los ingleses con
+sufijo `.en.html`. Sin `ADMIN_TOKEN` corre igual, con solo los casos sintéticos: alcanza para revisar las
+invariantes de idioma sin depender de la red.
 
 ## Endpoints
 
 | Método | Ruta | Para qué |
 |---|---|---|
 | `GET` | `/admin` | Panel para ver y descargar las respuestas |
-| `GET` | `/reporte/:id` | Reporte individual. El UUID es la credencial |
+| `GET` | `/reporte/:id` | Reporte individual. El UUID es la credencial. `?lang=en` para el inglés |
+| `GET` | `/reporte/:id/pdf` | El mismo reporte en PDF. Acepta el mismo `?lang=` |
 | `GET` | `/health` | Healthcheck |
 | `POST` | `/api/responses` | Fase 1 — respuesta anónima. Devuelve `{ id, count }` |
 | `POST` | `/api/responses/:id/contact` | Fase 2 — asocia el contacto |
@@ -142,6 +170,19 @@ y los comparan contra el espejo del servidor:
 Si tocas el scoring o el copy en un lado, tócalo en los dos. Nadie se entera de una divergencia hasta que alguien
 reclama.
 
+El inglés **no tiene contra qué compararse** —la encuesta es solo en español—, así que su red de seguridad es
+otra:
+
+- `server/test/i18n.test.js` — que los dos diccionarios tengan exactamente las mismas claves, del mismo tipo y
+  con la misma **aridad** en cada función. Es lo que caza traducir 11 de las 12 preguntas, agregar un párrafo
+  solo en español, o cambiarle los argumentos a una frase en un idioma y no en el otro.
+- `server/test/report.test.js` — el documento renderizado en ambos idiomas × las **cuatro ramas de perfil**
+  (plano, casi parejo, empate parcial, mínimo único), verificando que ningún título de un idioma aparezca en el
+  documento del otro. Es el chequeo real de "no quedó una sección sin traducir".
+
+Si agregas una frase al reporte, va en los **dos** diccionarios. Si no, la prueba falla — que es exactamente para
+lo que está.
+
 ## Regenerar la tarjeta de preview y el favicon
 
 Las imágenes del sitio (`og-image.png`, `favicon.ico`, `favicon.svg`,
@@ -167,6 +208,13 @@ inicio del bloque `<script>` en objetos simples (`QUESTIONS`, `LEVEL_COPY`, `ENE
 puede editar el copy ahí sin tocar la lógica ni el HTML.
 
 Los **IDs de pregunta (1–12) son estables**: cambiarlos rompe la lectura de las respuestas ya guardadas.
+
+Al editar ese copy hay que tocar tres archivos, y las pruebas te avisan si olvidas alguno: `index.html` (lo que
+lee quien contesta), [`server/src/content.js`](server/src/content.js) (su espejo, que verifica
+`content.test.js`) y [`server/src/i18n/en.js`](server/src/i18n/en.js) (la traducción, que verifica
+`i18n.test.js`). El copy que existe **solo** en el reporte y no en la encuesta —su prosa, sus títulos— vive
+directamente en `server/src/i18n/`, un archivo por idioma, y no toca `index.html`. Las intros por dimensión son
+el caso mixto: el español está en la sección "solo para el reporte" de `content.js` y el inglés en `en.js`.
 
 ---
 

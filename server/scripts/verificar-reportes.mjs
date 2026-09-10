@@ -7,22 +7,27 @@
  *
  *   ADMIN_TOKEN=... node scripts/verificar-reportes.mjs [carpeta-de-salida]
  *
- * Renderiza el reporte de cada respuesta real, revisa las invariantes que
- * importan y deja los HTML en disco para mirarlos en el navegador.
+ * Renderiza el reporte de cada respuesta real EN LOS DOS IDIOMAS, revisa las
+ * invariantes que importan y deja los HTML en disco para mirarlos en el
+ * navegador. Los títulos que busca salen de los diccionarios y no de literales,
+ * así la misma revisión sirve para cualquier idioma que se agregue.
  */
 
-import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { analizar, buildReportHtml, listar } from '../src/report.js';
+import { DICCIONARIOS, IDIOMAS } from '../src/i18n/index.js';
+import { analizar, buildReportHtml } from '../src/report.js';
 
 const API = process.env.API_BASE || 'https://radar-api-production-576f.up.railway.app';
 const TOKEN = process.env.ADMIN_TOKEN;
 const SALIDA = process.argv[2] || 'reportes-generados';
 
-if (!TOKEN) {
-  console.error('Falta ADMIN_TOKEN en el entorno.');
-  process.exit(1);
+/* Sin token se corre igual, con solo los casos sintéticos. Las invariantes de
+   idioma —que ninguna sección quede sin traducir— no necesitan datos reales, y
+   así se pueden revisar sin red ni acceso a producción. */
+const SOLO_SINTETICOS = !TOKEN;
+if (SOLO_SINTETICOS) {
+  console.log('Sin ADMIN_TOKEN: se revisan solo los casos sintéticos.\n');
 }
 
 /* CSV -> objetos (RFC 4180: las barreras traen comas, comillas y saltos). */
@@ -44,9 +49,12 @@ function parseCsv(str) {
   return rows;
 }
 
-const res = await fetch(`${API}/api/admin/responses.csv`, {
-  headers: { Authorization: 'Bearer ' + TOKEN },
-});
+/* Un CSV vacío deja `filas` en [] y el script pasa directo a los sintéticos. */
+const res = SOLO_SINTETICOS
+  ? { ok: true, text: async () => '' }
+  : await fetch(`${API}/api/admin/responses.csv`, {
+      headers: { Authorization: 'Bearer ' + TOKEN },
+    });
 if (!res.ok) {
   console.error('La API respondió', res.status);
   process.exit(1);
@@ -75,54 +83,78 @@ mkdirSync(SALIDA, { recursive: true });
 let planos = 0, casiParejos = 0, sinBarrera = 0, conContacto = 0, empatesParciales = 0;
 const problemas = [];
 
-filas.forEach((fila, i) => {
-  const n = i + 1;
+/** Mismo escapado que report.js, para buscar en el HTML ya emitido. */
+const esc = (s) =>
+  String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+
+/**
+ * Revisa un reporte en un idioma y devuelve su HTML (o null si el render falló).
+ *
+ * Cuenta las categorías de perfil solo cuando `contar` es true, para no
+ * duplicarlas al recorrer el segundo idioma.
+ */
+function revisar(fila, quien, codigo, contar) {
+  const d = DICCIONARIOS[codigo];
   let html;
   try {
-    html = buildReportHtml(fila);
+    html = buildReportHtml(fila, codigo);
   } catch (e) {
-    problemas.push(`#${n} (${fila.id}): el render lanzó "${e.message}"`);
-    return;
+    problemas.push(`${quien} [${codigo}]: el render lanzó "${e.message}"`);
+    return null;
   }
 
-  const a = analizar(fila);
+  const a = analizar(fila, d);
+  const donde = `${quien} [${codigo}]`;
+  const titulo = (t) => html.includes(`<h2>${esc(t)}</h2>`);
 
   // --- Invariantes que valen para todos ---
-  for (const basura of ['undefined', 'NaN', '[object Object]', 'null / 5']) {
-    if (html.includes(basura)) problemas.push(`#${n}: el HTML contiene "${basura}"`);
+  for (const basura of ['undefined', 'NaN', '[object Object]', 'null / 5', '=>']) {
+    if (html.includes(basura)) problemas.push(`${donde}: el HTML contiene "${basura}"`);
   }
-  if (!html.startsWith('<!DOCTYPE html>')) problemas.push(`#${n}: no arranca con doctype`);
-  if ((html.match(/<section/g) || []).length < 5) problemas.push(`#${n}: muy pocas secciones`);
+  if (!html.startsWith('<!DOCTYPE html>')) problemas.push(`${donde}: no arranca con doctype`);
+  if (!html.includes(`<html lang="${esc(d.htmlLang)}">`)) problemas.push(`${donde}: el atributo lang no corresponde`);
+  if ((html.match(/<section/g) || []).length < 5) problemas.push(`${donde}: muy pocas secciones`);
 
-  // Las 12 preguntas tienen que estar citadas en el detalle.
   a.perfil.forEach((p) =>
     p.preguntas.forEach((q) => {
-      if (q.valor < 1 || q.valor > 5) problemas.push(`#${n}: la pregunta ${q.id} quedó fuera de escala (${q.valor})`);
+      if (q.valor < 1 || q.valor > 5) problemas.push(`${donde}: la pregunta ${q.id} quedó fuera de escala (${q.valor})`);
+      if (!html.includes(esc(q.texto))) problemas.push(`${donde}: la afirmación ${q.id} no se cita`);
     })
   );
 
+  // --- Ninguna palabra del otro idioma se filtra ---
+  for (const otro of IDIOMAS.filter((c) => c !== codigo)) {
+    const o = DICCIONARIOS[otro];
+    for (const t of [o.perfil.h2, o.detalle.h2, o.contexto.h2, o.cierre.h2, o.barrera.h2,
+                     o.friccion.plano.h2, o.friccion.casiParejo.h2, o.friccion.normal.h2, o.fortaleza.h2]) {
+      if (html.includes(`<h2>${esc(t)}</h2>`)) problemas.push(`${donde}: se filtró el título "${t}" (${otro})`);
+    }
+  }
+
   // --- Nunca afirmar un cuello de botella que no existe ---
-  const afirmaFriccion = html.includes('Dónde está tu mayor fricción');
+  const afirmaFriccion = titulo(d.friccion.normal.h2);
   if (a.perfilPlano) {
-    planos++;
-    if (!html.includes('Tu perfil es parejo')) problemas.push(`#${n}: perfil plano sin la lectura honesta`);
-    if (afirmaFriccion) problemas.push(`#${n}: perfil plano pero afirma una fricción`);
-    if (html.includes('Dónde tienes terreno ganado')) problemas.push(`#${n}: perfil plano pero afirma una fortaleza`);
+    if (contar) planos++;
+    if (!titulo(d.friccion.plano.h2)) problemas.push(`${donde}: perfil plano sin la lectura honesta`);
+    if (afirmaFriccion) problemas.push(`${donde}: perfil plano pero afirma una fricción`);
+    if (titulo(d.fortaleza.h2)) problemas.push(`${donde}: perfil plano pero afirma una fortaleza`);
   } else if (a.casiParejo) {
-    casiParejos++;
-    if (!html.includes('Tu perfil es casi parejo')) problemas.push(`#${n}: casi parejo sin la lectura honesta`);
-    if (afirmaFriccion) problemas.push(`#${n}: ${a.masBajas.length} dimensiones empatadas pero afirma una fricción`);
-    // No debe imprimir un párrafo de cuello de botella por cada empatada.
-    const parrafos = (html.match(/class="cuerpo lectura">Hoy,/g) || []).length;
-    if (parrafos > 0) problemas.push(`#${n}: casi parejo pero imprime ${parrafos} párrafos de cuello de botella`);
+    if (contar) casiParejos++;
+    if (!titulo(d.friccion.casiParejo.h2)) problemas.push(`${donde}: casi parejo sin la lectura honesta`);
+    if (afirmaFriccion) problemas.push(`${donde}: ${a.masBajas.length} dimensiones empatadas pero afirma una fricción`);
+    /* No debe imprimir un párrafo de cuello de botella por cada empatada. El
+       prefijo se saca del propio diccionario ("Hoy, " / "Today, "). */
+    const prefijo = esc(d.friccion.normal.lectura(''));
+    const parrafos = html.split(`class="cuerpo lectura">${prefijo}`).length - 1;
+    if (parrafos > 0) problemas.push(`${donde}: casi parejo pero imprime ${parrafos} párrafos de cuello de botella`);
   } else {
-    if (!afirmaFriccion) problemas.push(`#${n}: falta la sección de fricción`);
-    if (!html.includes('Dónde tienes terreno ganado')) problemas.push(`#${n}: falta la sección de fortaleza`);
+    if (!afirmaFriccion) problemas.push(`${donde}: falta la sección de fricción`);
+    if (!titulo(d.fortaleza.h2)) problemas.push(`${donde}: falta la sección de fortaleza`);
     if (a.masBajas.length > 1) {
-      empatesParciales++;
+      if (contar) empatesParciales++;
       // Un empate parcial debe nombrarlas todas, no quedarse con una.
-      if (!html.includes('dimensiones empatadas')) {
-        problemas.push(`#${n}: ${a.masBajas.length} dimensiones empatadas abajo y no lo dice`);
+      for (const p of a.masBajas) {
+        if (!html.includes(esc(p.label))) problemas.push(`${donde}: no nombra "${p.label}", empatada abajo`);
       }
     }
   }
@@ -130,29 +162,43 @@ filas.forEach((fila, i) => {
   // Ninguna sección debe desplegar más de 3 bloques de dimensión seguidos
   // fuera del detalle completo (que sí lleva las 6).
   const bloques = (html.match(/class="dim-bloque /g) || []).length;
-  if (bloques > 6 + 3 + 3) problemas.push(`#${n}: ${bloques} bloques de dimensión, demasiados`);
+  if (bloques > 6 + 3 + 3) problemas.push(`${donde}: ${bloques} bloques de dimensión, demasiados`);
 
-  // --- Barrera ---
+  // --- Barrera: va tal como la escribió, sin traducir ---
   if (fila.barrier) {
-    if (!html.includes('Tu barrera, en tus palabras')) problemas.push(`#${n}: escribió barrera y no aparece`);
+    if (!titulo(d.barrera.h2)) problemas.push(`${donde}: escribió barrera y no aparece`);
+    if (!html.includes(esc(fila.barrier.trim()))) problemas.push(`${donde}: la barrera no está textual`);
   } else {
-    sinBarrera++;
-    if (html.includes('Tu barrera, en tus palabras')) problemas.push(`#${n}: sin barrera pero la sección existe`);
+    if (contar) sinBarrera++;
+    if (titulo(d.barrera.h2)) problemas.push(`${donde}: sin barrera pero la sección existe`);
   }
 
   // --- Contacto ---
   if (fila.contact_name) {
-    conContacto++;
+    if (contar) conContacto++;
     const primer = fila.contact_name.split(/\s+/)[0];
-    if (!html.includes(primer)) problemas.push(`#${n}: no saluda por su nombre ("${primer}")`);
+    if (!html.includes(esc(primer))) problemas.push(`${donde}: no saluda por su nombre ("${primer}")`);
   }
   // El correo nunca va en el cuerpo del reporte.
   if (/[\w.+-]+@(?!adapsysgroup)[\w-]+\.[\w.]+/.test(html.replace(/metrics@adapsysgroup\.com/g, ''))) {
-    problemas.push(`#${n}: parece filtrarse un email en el cuerpo`);
+    problemas.push(`${donde}: parece filtrarse un email en el cuerpo`);
   }
 
+  return html;
+}
+
+filas.forEach((fila, i) => {
+  const n = i + 1;
+  const quien = `#${n} (${fila.id})`;
+  const a = analizar(fila);
   const etiqueta = a.perfilPlano ? 'PLANO' : `${a.masBajas[0].key}-abajo`;
-  writeFileSync(join(SALIDA, `${String(n).padStart(2, '0')}-${etiqueta}.html`), html);
+
+  IDIOMAS.forEach((codigo, idx) => {
+    const html = revisar(fila, quien, codigo, idx === 0);
+    if (!html) return;
+    const sufijo = codigo === 'es' ? '' : `.${codigo}`;
+    writeFileSync(join(SALIDA, `${String(n).padStart(2, '0')}-${etiqueta}${sufijo}.html`), html);
+  });
 });
 
 console.log(`Reportes generados : ${filas.length}  ->  ${SALIDA}/`);
@@ -169,6 +215,9 @@ const casos = [
   { nombre: 'todo 5 (máximo posible)', a: Array(12).fill(5) },
   { nombre: 'sin nombre ni empresa', a: [3, 4, 2, 5, 1, 3, 4, 2, 5, 1, 3, 4], anon: true },
   { nombre: 'dos dimensiones empatadas abajo', a: [5, 5, 1, 1, 1, 1, 5, 5, 5, 5, 5, 5] },
+  // Cinco empatadas abajo: la rama "casi parejo", donde vive la gramática más
+  // difícil de traducir (plurales y concordancia en las tres frases).
+  { nombre: 'cinco empatadas abajo', a: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5, 5] },
 ];
 for (const caso of casos) {
   const fila = {
@@ -179,14 +228,17 @@ for (const caso of casos) {
     contact_name: caso.anon ? null : 'Persona Prueba',
     contact_company: caso.anon ? null : 'Empresa Prueba',
   };
-  const html = buildReportHtml(fila);
   const a = analizar(fila);
-  const desc = a.perfilPlano ? 'PLANO' : `abajo: ${listar(a.masBajas.map((p) => p.label))}`;
+  const desc = a.perfilPlano ? 'PLANO' : `abajo: ${DICCIONARIOS.es.fmt.listar(a.masBajas.map((p) => p.label))}`;
   console.log(`  ${caso.nombre.padEnd(34)} -> ${desc}`);
-  for (const basura of ['undefined', 'NaN', '[object Object]']) {
-    if (html.includes(basura)) problemas.push(`sintético "${caso.nombre}": contiene "${basura}"`);
+
+  const archivo = caso.nombre.replace(/[^a-z0-9]+/gi, '-');
+  for (const codigo of IDIOMAS) {
+    const html = revisar(fila, `sintético "${caso.nombre}"`, codigo, false);
+    if (!html) continue;
+    const sufijo = codigo === 'es' ? '' : `.${codigo}`;
+    writeFileSync(join(SALIDA, `sintetico-${archivo}${sufijo}.html`), html);
   }
-  writeFileSync(join(SALIDA, `sintetico-${caso.nombre.replace(/[^a-z0-9]+/gi, '-')}.html`), html);
 }
 
 console.log();

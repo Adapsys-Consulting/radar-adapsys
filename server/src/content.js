@@ -91,10 +91,16 @@ export const DIMENSION_INTRO = {
 };
 
 /**
- * Nombre del nivel de la escalera Adapsys para un puntaje de dimensión (1–5).
+ * Escalón de la escalera Adapsys (1–5) para un puntaje de dimensión.
+ *
  * Usa la misma regla que el nivel global en computeResult(), de modo que el
  * vocabulario del reporte sea coherente con el que la persona ya vio.
+ *
+ * Devuelve el número y no el nombre porque el nombre depende del idioma: cada
+ * diccionario de i18n/ le pone el suyo. La regla, en cambio, tiene que ser una
+ * sola — si el español y el inglés redondearan distinto, el mismo puntaje
+ * saldría como "Integrador" en un documento y como "Experimenter" en el otro.
  */
-export function nombreDeNivel(puntaje) {
-  return LEVEL_COPY[Math.max(1, Math.min(5, Math.round(puntaje)))].name;
+export function nivelDeDimension(puntaje) {
+  return Math.max(1, Math.min(5, Math.round(puntaje)));
 }

@@ -6,6 +6,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { initSchema, pool, query } from './db.js';
+import { resolverIdioma } from './i18n/index.js';
 import { nombreArchivo, renderPdf } from './pdf.js';
 import { buildReportHtml } from './report.js';
 import { computeResult, DIMENSIONS, QUESTION_IDS } from './scoring.js';
@@ -133,6 +134,11 @@ app.get('/admin', (_req, res) => {
  *
  * Un id inválido y uno inexistente devuelven lo mismo, para no confirmar la
  * existencia de un reporte a quien esté probando URLs.
+ *
+ * `?lang=en` emite el mismo reporte en inglés. La encuesta es solo en español,
+ * así que el inglés es la capa del documento que se envía por correo. Un `lang`
+ * desconocido cae al español en vez de fallar: el 404 está reservado para el
+ * id, que es la credencial.
  */
 app.get('/reporte/:id', async (req, res) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
@@ -147,7 +153,7 @@ app.get('/reporte/:id', async (req, res) => {
   );
   if (!rows.length) return res.status(404).type('text/plain').send('Reporte no encontrado.');
 
-  res.type('html').send(buildReportHtml(rows[0]));
+  res.type('html').send(buildReportHtml(rows[0], resolverIdioma(req.query.lang)));
 });
 
 /**
@@ -166,9 +172,11 @@ app.get('/reporte/:id/pdf', pdfLimiter, async (req, res) => {
   );
   if (!rows.length) return res.status(404).type('text/plain').send('Reporte no encontrado.');
 
+  const lang = resolverIdioma(req.query.lang);
+
   try {
-    const pdf = await renderPdf(buildReportHtml(rows[0]));
-    const nombre = nombreArchivo(rows[0]);
+    const pdf = await renderPdf(buildReportHtml(rows[0], lang));
+    const nombre = nombreArchivo(rows[0], lang);
     res.setHeader('Content-Type', 'application/pdf');
     // filename simple para clientes viejos, filename* para los acentos.
     res.setHeader(

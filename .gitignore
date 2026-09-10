@@ -7,3 +7,8 @@ node_modules/
 # Artefactos de las verificaciones con Playwright. Ojo: no ignorar *.png en
 # general — favicon, apple-touch-icon y og-image son parte del sitio.
 .playwright-mcp/
+
+# Salida por defecto de los scripts de verificación del reporte. Son datos
+# reales de clientes: no pueden terminar en el repo por descuido.
+reportes-generados/
+pdfs-generados/

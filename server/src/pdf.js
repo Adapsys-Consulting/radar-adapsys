@@ -9,6 +9,7 @@
  */
 
 import { chromium } from 'playwright-core';
+import { IDIOMA_POR_DEFECTO, diccionario, resolverIdioma } from './i18n/index.js';
 
 /** Tope duro: un PDF que tarda más que esto es un problema, no una demora. */
 const TIMEOUT_MS = 45_000;
@@ -104,8 +105,11 @@ export async function renderPdfConTexto(html) {
  * Nombre de archivo legible a partir de quién contestó.
  * Se quitan acentos y todo lo que no sea alfanumérico: un nombre de archivo con
  * tildes o barras se rompe distinto en cada sistema operativo.
+ *
+ * El prefijo lo pone el idioma —"Radar-Adapsys-IA" o "Adapsys-AI-Radar"— para
+ * que el adjunto llegue con el mismo nombre que el documento usa por dentro.
  */
-export function nombreArchivo(fila) {
+export function nombreArchivo(fila, lang = IDIOMA_POR_DEFECTO) {
   const limpio = (s) =>
     (s || '')
       .normalize('NFD')
@@ -113,6 +117,7 @@ export function nombreArchivo(fila) {
       .replace(/[^A-Za-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
 
-  const partes = ['Radar-Adapsys-IA', limpio(fila.contact_name), limpio(fila.contact_company)].filter(Boolean);
+  const prefijo = diccionario(resolverIdioma(lang)).doc.archivo;
+  const partes = [prefijo, limpio(fila.contact_name), limpio(fila.contact_company)].filter(Boolean);
   return partes.join('-').slice(0, 120) + '.pdf';
 }
